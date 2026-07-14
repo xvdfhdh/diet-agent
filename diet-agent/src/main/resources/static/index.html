@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>饮食推荐助手</title>
+    <link rel="stylesheet" href="./assets/css/app.css">
+</head>
+<body>
+<div class="app-shell">
+    <header class="topbar">
+        <a class="brand" href="#/diet" aria-label="回到饮食助手首页">
+            <span class="brand-mark">D</span>
+            <span>
+                    <strong>饮食推荐助手</strong>
+                    <small>清爽一点，吃得更合适</small>
+                </span>
+        </a>
+        <nav class="nav-links" aria-label="主导航">
+            <a href="#/diet" data-nav="/diet">首页</a>
+            <a href="#/diet/chat" data-nav="/diet/chat">聊天推荐</a>
+            <a href="#/diet/meals/personal" data-nav="/diet/meals/personal">个人餐食</a>
+            <a href="#/diet/meals/public" data-nav="/diet/meals/public">公共餐食</a>
+            <a href="#/admin/traces" data-nav="/admin/traces">Trace</a>
+            <a href="#/admin/evaluations" data-nav="/admin/evaluations">评估</a>
+        </nav>
+        <label class="user-field">
+            <span>用户 ID</span>
+            <input id="userIdInput" type="number" min="1" value="1">
+        </label>
+    </header>
+
+    <main id="app" class="page" tabindex="-1"></main>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="./assets/js/api.js"></script>
+<script src="./assets/js/app.js"></script>
+</body>
+</html>

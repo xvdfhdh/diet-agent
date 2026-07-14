@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.MealMapper">
+
+    <resultMap id="MealItemRowMap" type="com.diet.model.MealItemRow">
+        <id property="id" column="id"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="ownerUserId" column="owner_user_id"/>
+        <result property="name" column="name"/>
+        <result property="mealTime" column="meal_time"/>
+        <result property="mood" column="mood"/>
+        <result property="scene" column="scene"/>
+        <result property="healthGoal" column="health_goal"/>
+        <result property="cuisine" column="cuisine"/>
+        <result property="taste" column="taste"/>
+        <result property="convenience" column="convenience"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="MealColumns">
+        id,
+        source_type,
+        owner_user_id,
+        name,
+        meal_time,
+        mood,
+        scene,
+        health_goal,
+        cuisine,
+        taste,
+        convenience,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insert"
+            parameterType="com.diet.model.MealItemRow"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO meal_item (
+        source_type, owner_user_id, name,
+        meal_time, mood, scene, health_goal, cuisine, taste, convenience,
+        created_at, updated_at
+        ) VALUES (
+        #{sourceType}, #{ownerUserId}, #{name},
+        #{mealTime}, #{mood}, #{scene}, #{healthGoal}, #{cuisine}, #{taste}, #{convenience},
+        NOW(), NOW()
+        )
+    </insert>
+
+    <update id="updatePersonal" parameterType="com.diet.model.MealItemRow">
+        UPDATE meal_item
+        SET name = #{name},
+        meal_time = #{mealTime},
+        mood = #{mood},
+        scene = #{scene},
+        health_goal = #{healthGoal},
+        cuisine = #{cuisine},
+        taste = #{taste},
+        convenience = #{convenience},
+        updated_at = NOW()
+        WHERE id = #{id}
+        AND source_type = 'PERSONAL'
+        AND owner_user_id = #{ownerUserId}
+    </update>
+
+    <delete id="deletePersonal">
+        DELETE FROM meal_item
+        WHERE id = #{id}
+        AND source_type = 'PERSONAL'
+        AND owner_user_id = #{userId}
+    </delete>
+
+    <select id="findPersonalById" resultMap="MealItemRowMap">
+        SELECT <include refid="MealColumns"/>
+        FROM meal_item
+        WHERE id = #{id}
+        AND source_type = 'PERSONAL'
+        AND owner_user_id = #{userId}
+    </select>
+
+    <select id="findPersonalMeals" resultMap="MealItemRowMap">
+        SELECT <include refid="MealColumns"/>
+        FROM meal_item
+        WHERE source_type = 'PERSONAL'
+        AND owner_user_id = #{userId}
+        ORDER BY updated_at DESC
+    </select>
+
+    <select id="findPublicMeals" resultMap="MealItemRowMap">
+        SELECT <include refid="MealColumns"/>
+        FROM meal_item
+        WHERE source_type = 'PUBLIC'
+        AND owner_user_id IS NULL
+        ORDER BY updated_at DESC
+    </select>
+
+    <select id="countPersonalMeals" resultType="int">
+        SELECT COUNT(1)
+        FROM meal_item
+        WHERE source_type = 'PERSONAL'
+        AND owner_user_id = #{userId}
+    </select>
+
+    <select id="search" resultMap="MealItemRowMap">
+        SELECT <include refid="MealColumns"/>
+        FROM meal_item
+        <where>
+            <choose>
+                <when test="sourceMode != null and sourceMode.name() == 'PERSONAL'">
+                    source_type = 'PERSONAL'
+                    AND owner_user_id = #{userId}
+                </when>
+                <otherwise>
+                    source_type = 'PUBLIC'
+                    AND owner_user_id IS NULL
+                </otherwise>
+            </choose>
+            AND (#{mealTimeJson} = '[]' OR JSON_OVERLAPS(meal_time, #{mealTimeJson}))
+            AND (#{moodJson} = '[]' OR JSON_OVERLAPS(mood, #{moodJson}))
+            AND (#{sceneJson} = '[]' OR JSON_OVERLAPS(scene, #{sceneJson}))
+            AND (#{healthGoalJson} = '[]' OR JSON_OVERLAPS(health_goal, #{healthGoalJson}))
+            AND (#{cuisineJson} = '[]' OR JSON_OVERLAPS(cuisine, #{cuisineJson}))
+            AND (#{tasteJson} = '[]' OR JSON_OVERLAPS(taste, #{tasteJson}))
+            AND (#{convenienceJson} = '[]' OR JSON_OVERLAPS(convenience, #{convenienceJson}))
+        </where>
+        ORDER BY updated_at DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

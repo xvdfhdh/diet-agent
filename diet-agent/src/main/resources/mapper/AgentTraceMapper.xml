@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.AgentTraceMapper">
+
+    <resultMap id="RequestTraceRowMap" type="com.diet.model.RequestTraceRow">
+        <id property="id" column="id"/>
+        <result property="traceId" column="trace_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="status" column="status"/>
+        <result property="eventCount" column="event_count"/>
+        <result property="durationMs" column="duration_ms"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="traceJson" column="trace_json"/>
+        <result property="expectedIntent" column="expected_intent"/>
+        <result property="expectedSlots" column="expected_slots"/>
+        <result property="expectedClarifyAction" column="expected_clarify_action"/>
+        <result property="labeledBy" column="labeled_by"/>
+        <result property="labeledAt" column="labeled_at"/>
+        <result property="labelNote" column="label_note"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.diet.model.RequestTraceRow">
+        INSERT INTO diet_request_trace (
+        trace_id, session_id, user_id, status, event_count,
+        duration_ms, error_message, trace_json, created_at, updated_at
+        ) VALUES (
+        #{traceId}, #{sessionId}, #{userId}, #{status}, #{eventCount},
+        #{durationMs}, #{errorMessage}, #{traceJson}, NOW(), NOW()
+        )
+    </insert>
+
+    <select id="findByTraceId" resultMap="RequestTraceRowMap">
+        SELECT id,
+        trace_id,
+        session_id,
+        user_id,
+        status,
+        event_count,
+        duration_ms,
+        error_message,
+        trace_json,
+        expected_intent,
+        expected_slots,
+        expected_clarify_action,
+        labeled_by,
+        labeled_at,
+        label_note,
+        created_at,
+        updated_at
+        FROM diet_request_trace
+        WHERE user_id = #{userId}
+        AND trace_id = #{traceId}
+        LIMIT 1
+    </select>
+
+    <select id="findBySessionId" resultMap="RequestTraceRowMap">
+        SELECT id,
+        trace_id,
+        session_id,
+        user_id,
+        status,
+        event_count,
+        duration_ms,
+        error_message,
+        trace_json,
+        expected_intent,
+        expected_slots,
+        expected_clarify_action,
+        labeled_by,
+        labeled_at,
+        label_note,
+        created_at,
+        updated_at
+        FROM diet_request_trace
+        WHERE user_id = #{userId}
+        AND session_id = #{sessionId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findByTimeRange" resultMap="RequestTraceRowMap">
+        SELECT id,
+        trace_id,
+        session_id,
+        user_id,
+        status,
+        event_count,
+        duration_ms,
+        error_message,
+        trace_json,
+        expected_intent,
+        expected_slots,
+        expected_clarify_action,
+        labeled_by,
+        labeled_at,
+        label_note,
+        created_at,
+        updated_at
+        FROM diet_request_trace
+        WHERE user_id = #{userId}
+        AND created_at &gt;= #{startAt}
+        AND created_at &lt; #{endAt}
+        <if test="onlyUnlabeled">
+            AND expected_intent IS NULL
+            AND expected_slots IS NULL
+            AND expected_clarify_action IS NULL
+        </if>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="updateLabel">
+        UPDATE diet_request_trace
+        SET expected_intent = #{expectedIntent},
+        expected_slots = #{expectedSlots},
+        expected_clarify_action = #{expectedClarifyAction},
+        labeled_by = #{labeledBy},
+        labeled_at = NOW(),
+        label_note = #{labelNote},
+        updated_at = NOW()
+        WHERE user_id = #{userId}
+        AND trace_id = #{traceId}
+    </update>
+
+</mapper>

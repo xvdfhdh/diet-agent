@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.FeedbackMapper">
+
+    <resultMap id="FeedbackRowMap" type="com.diet.model.FeedbackRow">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="itemId" column="item_id"/>
+        <result property="action" column="action"/>
+        <result property="rating" column="rating"/>
+        <result property="reason" column="reason"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO recommend_feedback (
+        user_id, session_id, item_id, action, rating, reason, created_at
+        ) VALUES (
+        #{userId}, #{sessionId}, #{itemId}, #{action}, #{rating}, #{reason}, NOW()
+        )
+    </insert>
+
+    <select id="findBySessions" resultMap="FeedbackRowMap">
+        SELECT id,
+        user_id,
+        session_id,
+        item_id,
+        action,
+        rating,
+        reason,
+        created_at
+        FROM recommend_feedback
+        WHERE user_id = #{userId}
+        AND created_at &gt;= #{startAt}
+        AND created_at &lt; #{endAt}
+        <choose>
+            <when test="sessionIds != null and sessionIds.size() &gt; 0">
+                AND session_id IN
+                <foreach collection="sessionIds" item="sessionId" open="(" separator="," close=")">
+                    #{sessionId}
+                </foreach>
+            </when>
+            <otherwise>
+                AND 1 = 0
+            </otherwise>
+        </choose>
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+</mapper>
