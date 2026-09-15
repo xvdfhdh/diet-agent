@@ -1,0 +1,8 @@
+diet-web/node_modules/
+diet-web/dist/
+diet-web/.env
+diet-web/.env.local
+diet-web/.env.*.local
+!diet-web/.env.example
+diet-agent/target/
+diet-agent/.m2-cache/

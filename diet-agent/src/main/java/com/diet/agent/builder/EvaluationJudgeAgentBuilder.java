@@ -1,26 +1,25 @@
 package com.diet.agent.builder;
 
 import com.diet.agent.loader.PromptLoader;
+import com.diet.service.model.ModelConfigService;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.memory.InMemoryMemory;
-import io.agentscope.core.model.Model;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
 public class EvaluationJudgeAgentBuilder {
-    private final Model lightModel;
+    private final ModelConfigService modelConfigService;
     private final PromptLoader promptLoader;
 
-    public EvaluationJudgeAgentBuilder(@Qualifier("DietLightChatModel") Model lightModel, PromptLoader promptLoader) {
-        this.lightModel = lightModel;
+    public EvaluationJudgeAgentBuilder(ModelConfigService modelConfigService, PromptLoader promptLoader) {
+        this.modelConfigService = modelConfigService;
         this.promptLoader = promptLoader;
     }
 
     public ReActAgent build() {
         return ReActAgent.builder()
                 .name("diet_evaluation_judge_agent")
-                .model(lightModel)
+                .model(modelConfigService.lightModel())
                 .sysPrompt(promptLoader.load("diet/prompts/evaluation-judge.txt"))
                 .memory(new InMemoryMemory())
                 .build();

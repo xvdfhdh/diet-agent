@@ -1,10 +1,9 @@
 package com.diet.agent.builder;
 
 import com.diet.agent.loader.PromptLoader;
+import com.diet.service.model.ModelConfigService;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.memory.InMemoryMemory;
-import io.agentscope.core.model.Model;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,14 +13,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class IntentAgentBuilder {
     /** 轻量模型用于分类和 JSON 抽取任务。 */
-    private final Model lightModel;
+    private final ModelConfigService modelConfigService;
 
     /** PromptLoader 用于加载现有 intent.txt。 */
     private final PromptLoader promptLoader;
 
     /** 构造器注入模型和 PromptLoader。 */
-    public IntentAgentBuilder(@Qualifier("DietLightChatModel") Model lightModel, PromptLoader promptLoader) {
-        this.lightModel = lightModel;
+    public IntentAgentBuilder(ModelConfigService modelConfigService, PromptLoader promptLoader) {
+        this.modelConfigService = modelConfigService;
         this.promptLoader = promptLoader;
     }
 
@@ -29,7 +28,7 @@ public class IntentAgentBuilder {
     public ReActAgent build() {
         return ReActAgent.builder()
                 .name("diet_intent_agent")
-                .model(lightModel)
+                .model(modelConfigService.lightModel())
                 .sysPrompt(promptLoader.load("diet/prompts/intent.txt"))
                 .memory(new InMemoryMemory())
                 .build();

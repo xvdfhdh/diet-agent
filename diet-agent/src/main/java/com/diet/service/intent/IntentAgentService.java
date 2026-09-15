@@ -6,13 +6,13 @@ import com.diet.enums.Intent;
 import com.diet.model.IntentResult;
 import com.diet.model.SlotBundle;
 import com.diet.service.slot.SlotOptionService;
+import com.diet.service.model.ModelConfigService;
 import com.diet.service.trace.AgentTraceService;
 import com.diet.util.LlmJsonService;
 import com.diet.util.SlotJsonPicker;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.message.Msg;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +37,7 @@ public class IntentAgentService {
     private final AgentTraceService agentTraceService;
 
     /** IntentAgent 使用的轻量模型名，来自配置 diet.llm.light-model。 */
-    private final String modelName;
+    private final ModelConfigService modelConfigService;
 
     /** 构造器注入全部依赖。 */
     public IntentAgentService(
@@ -45,13 +45,13 @@ public class IntentAgentService {
             LlmJsonService llmJsonService,
             SlotOptionService slotOptionService,
             AgentTraceService agentTraceService,
-            @Value("${diet.llm.light-model:qwen-turbo}") String modelName
+            ModelConfigService modelConfigService
     ) {
         this.agentFactory = agentFactory;
         this.llmJsonService = llmJsonService;
         this.slotOptionService = slotOptionService;
         this.agentTraceService = agentTraceService;
-        this.modelName = modelName;
+        this.modelConfigService = modelConfigService;
     }
 
     /**
@@ -68,7 +68,7 @@ public class IntentAgentService {
             // 清空 Agent 内存，避免上一轮对话污染本轮意图识别
             agent.getMemory().clear();
             // 调用 Agent：内部走 agentTraceService.callAgent，记录 AGENT_CALL 事件（含 input/output/latency）
-            Msg response = agentTraceService.callAgent(sessionId, "IntentAgent", modelName,
+            Msg response = agentTraceService.callAgent(sessionId, "IntentAgent", modelConfigService.current().lightModel(),
                     agent, buildUserPrompt(userId, sessionId, userInput, knownSlots, recentHistory, slotOptions));
             // 解析 Agent 返回的 JSON 文本为 IntentResult（intent + slots + confidence）
             return parseResult(response.getTextContent(), userInput, slotOptions);

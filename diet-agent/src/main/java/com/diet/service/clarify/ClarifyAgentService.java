@@ -3,10 +3,10 @@ package com.diet.service.clarify;
 import com.diet.agent.factory.AgentFactory;
 import com.diet.model.ClarifyResult;
 import com.diet.model.SlotBundle;
+import com.diet.service.model.ModelConfigService;
 import com.diet.service.trace.AgentTraceService;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.message.Msg;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -27,19 +27,19 @@ public class ClarifyAgentService {
     private final AgentTraceService agentTraceService;
 
     /** ClarifyAgent 使用的轻量模型名，来自配置 diet.llm.light-model。 */
-    private final String modelName;
+    private final ModelConfigService modelConfigService;
 
     /** 构造器注入依赖。 */
     public ClarifyAgentService(
             AgentFactory agentFactory,
             ClarifyRuleService clarifyRuleService,
             AgentTraceService agentTraceService,
-            @Value("${diet.llm.light-model:qwen-turbo}") String modelName
+            ModelConfigService modelConfigService
     ) {
         this.agentFactory = agentFactory;
         this.clarifyRuleService = clarifyRuleService;
         this.agentTraceService = agentTraceService;
-        this.modelName = modelName;
+        this.modelConfigService = modelConfigService;
     }
 
     /**
@@ -59,7 +59,7 @@ public class ClarifyAgentService {
             // 清空 Agent 内存，避免跨轮污染
             agent.getMemory().clear();
             // 调用 Agent：内部走 agentTraceService.callAgent，记录 AGENT_CALL（ClarifyAgent + light-model）
-            Msg response = agentTraceService.callAgent(sessionId, "ClarifyAgent", modelName, agent, buildUserPrompt(userInput, slots, missingSlots));
+            Msg response = agentTraceService.callAgent(sessionId, "ClarifyAgent", modelConfigService.current().lightModel(), agent, buildUserPrompt(userInput, slots, missingSlots));
             // 提取 Agent 返回的追问文案并 trim
             String question = response.getTextContent() == null ? "" : response.getTextContent().trim();
             // LLM 返回空文本时，用 ClarifyRule 模板追问兜底

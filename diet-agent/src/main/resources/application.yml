@@ -20,8 +20,12 @@ server:
 
 diet:
   llm:
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    endpoint-path: /chat/completions
     main-model: qwen-max
     light-model: qwen-turbo
+  cors:
+    allowed-origin-patterns: ${DIET_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:[*],http://127.0.0.1:[*]}
   session:
     max-history-turns: 10
 

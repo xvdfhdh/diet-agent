@@ -2,6 +2,7 @@ package com.diet.service.evaluation;
 
 import com.diet.agent.builder.EvaluationJudgeAgentBuilder;
 import com.diet.model.EvaluationJudgeResult;
+import com.diet.service.model.ModelConfigService;
 import com.diet.service.trace.AgentTraceService;
 import com.diet.util.LlmJsonService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -10,7 +11,6 @@ import io.agentscope.core.ReActAgent;
 import io.agentscope.core.message.Msg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -23,20 +23,20 @@ public class EvaluationJudgeService {
     private final AgentTraceService agentTraceService;
     private final LlmJsonService llmJsonService;
     private final ObjectMapper objectMapper;
-    private final String modelName;
+    private final ModelConfigService modelConfigService;
 
     public EvaluationJudgeService(
             EvaluationJudgeAgentBuilder agentBuilder,
             AgentTraceService agentTraceService,
             LlmJsonService llmJsonService,
             ObjectMapper objectMapper,
-            @Value("${diet.llm.light-model:qwen-turbo}") String modelName
+            ModelConfigService modelConfigService
     ) {
         this.agentBuilder = agentBuilder;
         this.agentTraceService = agentTraceService;
         this.llmJsonService = llmJsonService;
         this.objectMapper = objectMapper;
-        this.modelName = modelName;
+        this.modelConfigService = modelConfigService;
     }
 
     public EvaluationJudgeResult judge(String traceId, String sessionId, Map<String, Object> judgeInput) {
@@ -46,7 +46,7 @@ public class EvaluationJudgeService {
             Msg response = agentTraceService.callAgent(
                     sessionId,
                     "EvaluationJudgeAgent",
-                    modelName,
+                    modelConfigService.current().lightModel(),
                     agent,
                     buildUserPrompt(traceId, judgeInput)
             );

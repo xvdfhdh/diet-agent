@@ -8,12 +8,12 @@ import com.diet.model.RecommendResult;
 import com.diet.model.RecommendedMealOption;
 import com.diet.model.ResponseResult;
 import com.diet.model.SlotBundle;
+import com.diet.service.model.ModelConfigService;
 import com.diet.service.trace.AgentTraceService;
 import com.diet.util.LlmJsonService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.message.Msg;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ public class RecommendResponseAgentService {
     /**
      * RecommendResponseAgent 使用的主模型名，来自配置 diet.llm.main-model。
      */
-    private final String modelName;
+    private final ModelConfigService modelConfigService;
 
     /**
      * 构造器注入依赖。
@@ -55,12 +55,12 @@ public class RecommendResponseAgentService {
             AgentFactory agentFactory,
             LlmJsonService llmJsonService,
             AgentTraceService agentTraceService,
-            @Value("${diet.llm.main-model:qwen-max}") String modelName
+            ModelConfigService modelConfigService
     ) {
         this.agentFactory = agentFactory;
         this.llmJsonService = llmJsonService;
         this.agentTraceService = agentTraceService;
-        this.modelName = modelName;
+        this.modelConfigService = modelConfigService;
     }
 
     /**
@@ -93,7 +93,7 @@ public class RecommendResponseAgentService {
             Msg response = agentTraceService.callAgent(
                     sessionId,
                     "RecommendResponseAgent",
-                    modelName,
+                    modelConfigService.current().mainModel(),
                     agent,
                     buildUserPrompt(userInput, sourceMode, slots, topMeals)
             );

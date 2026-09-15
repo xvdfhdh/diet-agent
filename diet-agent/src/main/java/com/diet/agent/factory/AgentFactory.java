@@ -5,7 +5,10 @@ import io.agentscope.core.ReActAgent;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.experimental.Accessors;
+import com.diet.service.model.ModelConfigChangedEvent;
+import com.diet.service.model.ModelConfigService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -33,6 +36,8 @@ public class AgentFactory {
     /** Prompt 版本，Prompt 升级后可以通过配置变更避免复用旧 Agent。 */
     private final String promptVersion;
 
+    private final ModelConfigService modelConfigService;
+
     /** 会话级缓存，accessOrder=true 表示最近访问的元素排到末尾。 */
     private final Map<String, AgentSet> cache = Collections.synchronizedMap(
             new LinkedHashMap<>(16, 0.75f, true) {
@@ -48,11 +53,13 @@ public class AgentFactory {
             IntentAgentBuilder intentBuilder,
             ClarifyAgentBuilder clarifyBuilder,
             RecommendResponseAgentBuilder recommendResponseBuilder,
+            ModelConfigService modelConfigService,
             @Value("${diet.prompt.version:v1}") String promptVersion
     ) {
         this.intentBuilder = intentBuilder;
         this.clarifyBuilder = clarifyBuilder;
         this.recommendResponseBuilder = recommendResponseBuilder;
+        this.modelConfigService = modelConfigService;
         this.promptVersion = promptVersion;
     }
 
@@ -70,9 +77,14 @@ public class AgentFactory {
         cache.remove(cacheKey(sessionId));
     }
 
+    @EventListener
+    public void onModelConfigChanged(ModelConfigChangedEvent ignored) {
+        cache.clear();
+    }
+
     /** 生成包含 Prompt 版本的缓存键。 */
     private String cacheKey(String sessionId) {
-        return sessionId + "::" + promptVersion;
+        return sessionId + "::" + promptVersion + "::" + modelConfigService.revision();
     }
 
     /**

@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 
-@RestControllerAdvice(basePackages = "com.diet.newdiet")
+@RestControllerAdvice(basePackages = "com.diet")
 public class DietExceptionHandler {
     @ExceptionHandler(DietException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
