@@ -9,7 +9,7 @@ const fields: Array<{ key: keyof MealDraft; label: string }> = [
   { key: 'mealTime', label: '时段' }, { key: 'mood', label: '心情' }, { key: 'scene', label: '场景' },
   { key: 'healthGoal', label: '饮食目标' }, { key: 'cuisine', label: '菜系' }, { key: 'taste', label: '口味' }, { key: 'convenience', label: '便利偏好' },
 ]
-const emptyDraft: MealDraft = { name: '', mealTime: [], mood: [], scene: [], healthGoal: [], cuisine: [], taste: [], convenience: [] }
+const emptyDraft: MealDraft = { name: '', imageUrl: '', mealTime: [], mood: [], scene: [], healthGoal: [], cuisine: [], taste: [], convenience: [] }
 
 export function MealsPage({ mode }: { mode: 'personal' | 'public' }) {
   const [meals, setMeals] = useState<Meal[]>([])
@@ -29,8 +29,8 @@ export function MealsPage({ mode }: { mode: 'personal' | 'public' }) {
   useEffect(() => { load(); api.slotOptions().then(setOptions).catch(() => undefined) }, [mode])
 
   function edit(meal: Meal) {
-    const { name, mealTime, mood, scene, healthGoal, cuisine, taste, convenience } = meal
-    setDraft({ name, mealTime, mood, scene, healthGoal, cuisine, taste, convenience })
+    const { name, imageUrl, mealTime, mood, scene, healthGoal, cuisine, taste, convenience } = meal
+    setDraft({ name, imageUrl: imageUrl || '', mealTime, mood, scene, healthGoal, cuisine, taste, convenience })
     setEditingId(meal.id); setOpen(true)
   }
   function close() { setOpen(false); setEditingId(undefined); setDraft(emptyDraft) }
@@ -68,10 +68,10 @@ export function MealsPage({ mode }: { mode: 'personal' | 'public' }) {
       <form className="dialog meal-form" onSubmit={submit}>
         <div className="dialog-title"><div><small>{editingId ? '编辑餐食' : '添加餐食'}</small><h2>记录一道熟悉的味道</h2></div><button type="button" className="icon-button" onClick={close}><X size={20} /></button></div>
         <label className="field"><span>餐食名称</span><input autoFocus value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="例如：土豆炖牛肉" /></label>
+        <label className="field"><span>图片地址（选填）</span><input value={draft.imageUrl || ''} onChange={(event) => setDraft({ ...draft, imageUrl: event.target.value })} placeholder="例如：https://…/meal.jpg 或 /meals/meal.jpg" /></label>
         {fields.map(({ key, label }) => <fieldset className="choice-field" key={key}><legend>{label}</legend><div>{(options[key] || []).slice(0, 16).map((value) => <button type="button" key={value} className={(draft[key] as string[]).includes(value) ? 'selected' : ''} onClick={() => toggle(key, value)}>{value}</button>)}</div></fieldset>)}
         <div className="dialog-actions"><button type="button" className="secondary-button" onClick={close}>取消</button><button className="primary-button">{editingId ? '保存修改' : '加入清单'}</button></div>
       </form>
     </div>}
   </section>
 }
-

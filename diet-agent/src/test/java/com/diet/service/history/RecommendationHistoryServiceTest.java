@@ -32,7 +32,7 @@ class RecommendationHistoryServiceTest {
     void recordsAndReadsRenderedRecommendations() {
         SlotBundle slots = new SlotBundle(List.of("午餐"), List.of(), List.of(), List.of(), List.of(), List.of("清淡"), List.of("快速"));
         MealResponse meal = new MealResponse(
-                3L, SourceMode.PUBLIC, "鸡胸肉轻食碗", List.of("午餐"), List.of(), List.of(),
+                3L, SourceMode.PUBLIC, "鸡胸肉轻食碗", "/meals/chicken-grain-bowl.jpg", List.of("午餐"), List.of(), List.of(),
                 List.of("高蛋白"), List.of("轻食"), List.of("清淡"), List.of("快速"), 0.7
         );
 
@@ -51,5 +51,34 @@ class RecommendationHistoryServiceTest {
         assertThat(history.get(0).userInput()).isEqualTo("午餐要清淡");
         assertThat(history.get(0).meals()).extracting(MealResponse::name).containsExactly("鸡胸肉轻食碗");
         assertThat(history.get(0).slots().taste()).containsExactly("清淡");
+    }
+
+    @Test
+    void resolvesNaturalLanguageReferenceToLatestRecommendation() {
+        MealResponse meal = new MealResponse(
+                4L, SourceMode.PUBLIC, "麻辣香锅", "/meals/spicy-dry-pot.png", List.of("晚餐"), List.of("开心"),
+                List.of("周末"), List.of("补能"), List.of("川菜"), List.of("麻辣"), List.of("多人共享"), 0.9);
+        RecommendationHistoryRow row = new RecommendationHistoryRow();
+        row.setId(11L);
+        row.setSourceMode("PUBLIC");
+        row.setSessionId("old-session");
+        row.setTraceId("old-trace");
+        row.setUserInput("想吃点辣的");
+        row.setSlotsJson("{}");
+        row.setSpeechText("推荐麻辣香锅");
+        try {
+            row.setMealsJson(new ObjectMapper().writeValueAsString(List.of(meal)));
+        } catch (Exception error) {
+            throw new RuntimeException(error);
+        }
+        row.setCreatedAt(LocalDateTime.now());
+        when(mapper.findRecent(1L, 10)).thenReturn(List.of(row));
+
+        var reference = service.resolveReference(1L, SourceMode.PUBLIC, "上次那个挺好吃，类似的再推荐一下");
+
+        assertThat(reference).isPresent();
+        assertThat(reference.orElseThrow().anchorMealName()).isEqualTo("麻辣香锅");
+        assertThat(reference.orElseThrow().excludeMealIds()).containsExactly(4L);
+        assertThat(reference.orElseThrow().slots().taste()).containsExactly("麻辣");
     }
 }

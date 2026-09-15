@@ -1,17 +1,17 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { ArrowUp, Brain, Check, Clock3, RotateCcw } from 'lucide-react'
 import { api } from '../lib/api'
 import { MealCard } from '../components/MealCard'
 import { Notice } from '../components/Notice'
 import type { Meal, RecommendationHistory, SourceMode, UserMemory } from '../types'
 
-type Message = { role: 'user' | 'assistant'; text: string; meals?: Meal[]; traceId?: string }
+type Message = { id: string; role: 'user' | 'assistant'; text: string; meals?: Meal[]; traceId?: string; status?: string; streaming?: boolean }
 
 const suggestions = ['午饭想吃辣一点，最好快一些', '运动后想吃高蛋白的晚餐', '今天没胃口，来点清淡暖胃的']
 const previewMeals: Meal[] = [
-  { id: -1, sourceType: 'PUBLIC', name: '番茄鸡蛋面', mealTime: ['午餐'], mood: [], scene: [], healthGoal: ['清淡', '养胃'], cuisine: ['家常'], taste: ['番茄味'], convenience: ['快速'], matchScore: 0 },
-  { id: -2, sourceType: 'PUBLIC', name: '清汤馄饨', mealTime: ['晚餐'], mood: [], scene: [], healthGoal: ['暖胃'], cuisine: ['小吃'], taste: ['咸鲜'], convenience: ['少餐具'], matchScore: 0 },
-  { id: -3, sourceType: 'PUBLIC', name: '鸡胸肉轻食碗', mealTime: ['午餐'], mood: [], scene: [], healthGoal: ['高蛋白'], cuisine: ['轻食'], taste: ['清淡'], convenience: ['快速'], matchScore: 0 },
+  { id: -1, sourceType: 'PUBLIC', name: '番茄鸡蛋面', imageUrl: '/meals/tomato-egg-noodles.jpg', mealTime: ['午餐'], mood: [], scene: [], healthGoal: ['清淡', '养胃'], cuisine: ['家常'], taste: ['番茄味'], convenience: ['快速'], matchScore: 0 },
+  { id: -2, sourceType: 'PUBLIC', name: '清汤馄饨', imageUrl: '/meals/clear-wonton.jpg', mealTime: ['晚餐'], mood: [], scene: [], healthGoal: ['暖胃'], cuisine: ['小吃'], taste: ['咸鲜'], convenience: ['少餐具'], matchScore: 0 },
+  { id: -3, sourceType: 'PUBLIC', name: '鸡胸肉轻食碗', imageUrl: '/meals/chicken-grain-bowl.jpg', mealTime: ['午餐'], mood: [], scene: [], healthGoal: ['高蛋白'], cuisine: ['轻食'], taste: ['清淡'], convenience: ['快速'], matchScore: 0 },
 ]
 
 export function ChatPage() {
@@ -22,22 +22,25 @@ export function ChatPage() {
   const [publicMeals, setPublicMeals] = useState<Meal[]>([])
   const [history, setHistory] = useState<RecommendationHistory[]>([])
   const [memories, setMemories] = useState<UserMemory[]>([])
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState({ message: '', tone: 'success' as 'success' | 'error' })
+  const streamController = useRef<AbortController | undefined>(undefined)
 
   useEffect(() => {
     let active = true
-    Promise.all([api.meals('public'), api.recommendationHistory(), api.memories()])
-      .then(([meals, records, remembered]) => {
+    Promise.all([api.meals('public'), api.recommendationHistory(), api.memories(), api.favorites()])
+      .then(([meals, records, remembered, favorites]) => {
         if (!active) return
         setPublicMeals(meals)
         setHistory(records)
         setMemories(remembered)
+        setFavoriteIds(new Set(favorites.map((item) => item.meal.id)))
       })
       .catch((error) => {
         if (active) setNotice({ message: error instanceof Error ? error.message : '加载今日推荐失败', tone: 'error' })
       })
-    return () => { active = false }
+    return () => { active = false; streamController.current?.abort() }
   }, [])
 
   async function refreshPersonalContext() {
@@ -54,22 +57,49 @@ export function ChatPage() {
     const text = message.trim()
     if (!text || loading) return
     setInput('')
-    setMessages((items) => [...items, { role: 'user', text }])
+    const requestId = crypto.randomUUID()
+    const assistantId = `${requestId}-assistant`
+    setMessages((items) => [...items,
+      { id: requestId, role: 'user', text },
+      { id: assistantId, role: 'assistant', text: '', status: '正在连接推荐服务…', streaming: true },
+    ])
     setLoading(true)
+    streamController.current?.abort()
+    const controller = new AbortController()
+    streamController.current = controller
+    let receivedComplete = false
     try {
-      const response = await api.chat({ sessionId, message: text, sourceMode: mode })
-      setSessionId(response.sessionId)
-      setMessages((items) => [...items, {
-        role: 'assistant',
-        text: response.clarifyQuestion || response.speechText,
-        meals: response.displayBlocks,
-        traceId: response.traceId,
-      }])
-      if (response.displayBlocks.length > 0) void refreshPersonalContext()
+      await api.chatStream({ sessionId, message: text, sourceMode: mode }, (event) => {
+        if (event.type === 'status') {
+          setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, status: event.text } : item))
+        } else if (event.type === 'delta' && event.text) {
+          setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, text: item.text + event.text, status: undefined } : item))
+        } else if (event.type === 'complete' && event.response) {
+          receivedComplete = true
+          const response = event.response
+          setSessionId(response.sessionId)
+          setMessages((items) => items.map((item) => item.id === assistantId ? {
+            ...item,
+            text: response.clarifyQuestion || response.speechText,
+            meals: response.displayBlocks,
+            traceId: response.traceId,
+            status: undefined,
+            streaming: false,
+          } : item))
+          if (response.displayBlocks.length > 0) void refreshPersonalContext()
+        } else if (event.type === 'error') {
+          throw new Error(event.text || '生成推荐失败')
+        }
+      }, controller.signal)
+      if (!receivedComplete) throw new Error('流式连接提前结束，请重试')
     } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : '发送失败，请稍后再试', tone: 'error' })
+      if (!controller.signal.aborted) {
+        const message = error instanceof Error ? error.message : '发送失败，请稍后再试'
+        setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, text: `抱歉，${message}`, status: undefined, streaming: false } : item))
+        setNotice({ message, tone: 'error' })
+      }
     } finally {
-      setLoading(false)
+      if (streamController.current === controller) setLoading(false)
     }
   }
 
@@ -84,6 +114,24 @@ export function ChatPage() {
     }
   }
 
+  async function toggleFavorite(meal: Meal) {
+    if (meal.id < 0) return
+    try {
+      if (favoriteIds.has(meal.id)) {
+        await api.removeFavorite(meal.id)
+        setFavoriteIds((ids) => { const next = new Set(ids); next.delete(meal.id); return next })
+        setNotice({ message: `已取消收藏「${meal.name}」`, tone: 'success' })
+      } else {
+        await api.addFavorite(meal.id, sessionId)
+        setFavoriteIds((ids) => new Set(ids).add(meal.id))
+        setNotice({ message: `已收藏「${meal.name}」，也会用于长期偏好`, tone: 'success' })
+        void refreshPersonalContext()
+      }
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : '收藏操作失败', tone: 'error' })
+    }
+  }
+
   const recommendations = messages.flatMap((item) => item.meals || []).slice(-3)
   const fallbackMeals = publicMeals.length ? publicMeals.slice(0, 3) : previewMeals
   const visibleMemories = memories.filter((memory) => memory.type === 'SLOT_PREFERENCE').slice(0, 8)
@@ -92,7 +140,7 @@ export function ChatPage() {
       <section className="chat-main">
         <header className="page-header chat-header">
           <div><p className="eyebrow">今天 · 一餐一味</p><h1>今天想吃点什么？</h1><p>说说你的时间、口味，或者此刻更在意什么。</p></div>
-          {messages.length > 0 && <button className="quiet-button" onClick={() => { setMessages([]); setSessionId(undefined) }}><RotateCcw size={16} />新对话</button>}
+          {messages.length > 0 && <button className="quiet-button" onClick={() => { streamController.current?.abort(); setLoading(false); setMessages([]); setSessionId(undefined) }}><RotateCcw size={16} />新对话</button>}
         </header>
 
         <div className="source-switch" aria-label="餐食来源">
@@ -107,11 +155,13 @@ export function ChatPage() {
             <div className="suggestion-list">
               {suggestions.map((item) => <button key={item} onClick={() => send(item)}>{item}</button>)}
             </div>
-          </div> : messages.map((message, index) => <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
+          </div> : messages.map((message) => <div className={`message ${message.role}`} key={message.id}>
             <span className="message-author">{message.role === 'user' ? '你' : '食刻'}</span>
-            <div className="message-content"><p>{message.text}</p>{message.meals?.map((meal) => <MealCard key={meal.id} meal={meal} compact onFeedback={(action) => rememberFeedback(meal, action)} />)}</div>
+            <div className={`message-content ${message.streaming && !message.text ? 'typing' : ''}`}>
+              {message.status ? <p className="stream-status"><i /><i /><i />{message.status}</p> : <p>{message.text}</p>}
+              {message.meals?.map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={() => toggleFavorite(meal)} onFeedback={(action) => rememberFeedback(meal, action)} />)}
+            </div>
           </div>)}
-          {loading && <div className="message assistant"><span className="message-author">食刻</span><div className="message-content typing"><i /><i /><i /></div></div>}
         </div>
 
         <form className="chat-composer" onSubmit={(event: FormEvent) => { event.preventDefault(); send() }}>
@@ -126,7 +176,7 @@ export function ChatPage() {
       <aside className="recommendation-rail">
         <div className="rail-heading"><span>今日推荐</span><small>{history.length} 次记录</small></div>
         <div className="rail-section-title"><span>本轮推荐</span><small>{recommendations.length || fallbackMeals.length} 道</small></div>
-        {(recommendations.length ? recommendations : fallbackMeals).map((meal) => <MealCard key={meal.id} meal={meal} compact />)}
+        {(recommendations.length ? recommendations : fallbackMeals).map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={meal.id > 0 ? () => toggleFavorite(meal) : undefined} />)}
         {!recommendations.length && <p className="rail-note">先给你三道参考。开始聊聊，推荐会跟着你的描述变化。</p>}
 
         <section className="history-section" aria-labelledby="today-history-title">

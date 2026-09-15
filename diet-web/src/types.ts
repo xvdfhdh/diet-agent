@@ -4,6 +4,7 @@ export interface Meal {
   id: number
   sourceType: SourceMode
   name: string
+  imageUrl?: string
   mealTime: string[]
   mood: string[]
   scene: string[]
@@ -47,6 +48,18 @@ export interface UserMemory {
   updatedAt: string
 }
 
+export interface FavoriteMeal {
+  meal: Meal
+  createdAt?: string
+}
+
+export interface UserPreferenceProfile {
+  healthGoal: string[]
+  cuisine: string[]
+  taste: string[]
+  convenience: string[]
+}
+
 export type MealDraft = Omit<Meal, 'id' | 'sourceType' | 'matchScore'>
 
 export interface ChatResponse {
@@ -58,6 +71,12 @@ export interface ChatResponse {
   nextAction?: string
   clarifyQuestion?: string
   missingSlots: string[]
+}
+
+export interface ChatStreamEvent {
+  type: 'status' | 'delta' | 'complete' | 'error'
+  text?: string
+  response?: ChatResponse
 }
 
 export interface Trace {

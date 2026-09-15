@@ -16,6 +16,7 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 public class MealRequest {
     private String name;
+    private String imageUrl;
     private List<String> mealTime;
     private List<String> mood;
     private List<String> scene;

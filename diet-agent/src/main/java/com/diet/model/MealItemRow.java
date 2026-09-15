@@ -10,6 +10,7 @@ public class MealItemRow {
     private String sourceType;
     private Long ownerUserId;
     private String name;
+    private String imageUrl;
     private String mealTime;
     private String mood;
     private String scene;

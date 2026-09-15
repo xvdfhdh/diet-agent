@@ -9,6 +9,7 @@
         <result property="sourceType" column="source_type"/>
         <result property="ownerUserId" column="owner_user_id"/>
         <result property="name" column="name"/>
+        <result property="imageUrl" column="image_url"/>
         <result property="mealTime" column="meal_time"/>
         <result property="mood" column="mood"/>
         <result property="scene" column="scene"/>
@@ -25,6 +26,7 @@
         source_type,
         owner_user_id,
         name,
+        image_url,
         meal_time,
         mood,
         scene,
@@ -41,11 +43,11 @@
             useGeneratedKeys="true"
             keyProperty="id">
         INSERT INTO meal_item (
-        source_type, owner_user_id, name,
+        source_type, owner_user_id, name, image_url,
         meal_time, mood, scene, health_goal, cuisine, taste, convenience,
         created_at, updated_at
         ) VALUES (
-        #{sourceType}, #{ownerUserId}, #{name},
+        #{sourceType}, #{ownerUserId}, #{name}, #{imageUrl},
         #{mealTime}, #{mood}, #{scene}, #{healthGoal}, #{cuisine}, #{taste}, #{convenience},
         NOW(), NOW()
         )
@@ -54,6 +56,7 @@
     <update id="updatePersonal" parameterType="com.diet.model.MealItemRow">
         UPDATE meal_item
         SET name = #{name},
+        image_url = #{imageUrl},
         meal_time = #{mealTime},
         mood = #{mood},
         scene = #{scene},

@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class RecommendationHistoryService {
@@ -55,6 +57,44 @@ public class RecommendationHistoryService {
     public List<RecommendationHistoryResponse> today(Long userId, Integer limit) {
         int safeLimit = Math.max(1, Math.min(limit == null ? 20 : limit, MAX_LIMIT));
         return mapper.findToday(userId, safeLimit).stream().map(this::toResponse).toList();
+    }
+
+    public List<RecommendationHistoryResponse> recent(Long userId, Integer limit) {
+        int safeLimit = Math.max(1, Math.min(limit == null ? 20 : limit, MAX_LIMIT));
+        return mapper.findRecent(userId, safeLimit).stream().map(this::toResponse).toList();
+    }
+
+    /** 识别“上次那个类似的再来一个”，并把最近一次推荐作为相似推荐锚点。 */
+    public Optional<HistoryReference> resolveReference(Long userId, SourceMode sourceMode, String userInput) {
+        if (!looksLikeHistoricalFollowUp(userInput)) {
+            return Optional.empty();
+        }
+        return recent(userId, 10).stream()
+                .filter(history -> history.sourceMode() == sourceMode)
+                .findFirst()
+                .filter(history -> history.meals() != null && !history.meals().isEmpty())
+                .map(history -> {
+                    MealResponse anchor = history.meals().get(0);
+                    SlotBundle slots = new SlotBundle(
+                            anchor.mealTime(), anchor.mood(), anchor.scene(), anchor.healthGoal(),
+                            anchor.cuisine(), anchor.taste(), anchor.convenience());
+                    List<Long> mealIds = history.meals().stream().map(MealResponse::id).toList();
+                    return new HistoryReference(history.id(), history.sourceMode(), anchor.name(), slots, mealIds);
+                });
+    }
+
+    private boolean looksLikeHistoricalFollowUp(String userInput) {
+        if (userInput == null || userInput.isBlank()) {
+            return false;
+        }
+        String text = userInput.toLowerCase(Locale.ROOT);
+        boolean referencesPast = List.of("上次", "之前", "刚才", "刚刚", "那个").stream().anyMatch(text::contains);
+        boolean asksSimilar = List.of("类似", "差不多", "再推荐", "再来", "换一个", "换一批").stream().anyMatch(text::contains);
+        return referencesPast && asksSimilar;
+    }
+
+    public record HistoryReference(Long historyId, SourceMode sourceMode, String anchorMealName,
+                                   SlotBundle slots, List<Long> excludeMealIds) {
     }
 
     private RecommendationHistoryResponse toResponse(RecommendationHistoryRow row) {

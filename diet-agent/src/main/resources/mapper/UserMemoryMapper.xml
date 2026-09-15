@@ -66,4 +66,9 @@
         LIMIT #{limit}
     </select>
 
+    <delete id="deleteSlotPreferences">
+        DELETE FROM diet_user_memory
+        WHERE user_id = #{userId} AND memory_type = 'SLOT_PREFERENCE'
+    </delete>
+
 </mapper>

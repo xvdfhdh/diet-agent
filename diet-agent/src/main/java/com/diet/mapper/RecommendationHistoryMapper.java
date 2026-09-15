@@ -11,4 +11,6 @@ public interface RecommendationHistoryMapper {
     int insert(RecommendationHistoryRow row);
 
     List<RecommendationHistoryRow> findToday(@Param("userId") Long userId, @Param("limit") int limit);
+
+    List<RecommendationHistoryRow> findRecent(@Param("userId") Long userId, @Param("limit") int limit);
 }

@@ -1,10 +1,12 @@
 import type { PropsWithChildren } from 'react'
-import { BarChart3, BookOpenText, History, Settings2, Sparkles, UtensilsCrossed } from 'lucide-react'
+import { BarChart3, BookOpenText, Bookmark, Brain, History, Settings2, Sparkles, UtensilsCrossed } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 const navItems = [
   { to: '/', label: '今日推荐', icon: Sparkles },
   { to: '/meals/personal', label: '我的餐食', icon: UtensilsCrossed },
+  { to: '/collection', label: '收藏与历史', icon: Bookmark },
+  { to: '/preferences', label: '我的偏好', icon: Brain },
   { to: '/meals/public', label: '公共餐食', icon: BookOpenText },
   { to: '/traces', label: '运行记录', icon: History },
   { to: '/evaluations', label: '效果评测', icon: BarChart3 },
@@ -56,4 +58,3 @@ export function AppShell({ children }: PropsWithChildren) {
     </div>
   )
 }
-

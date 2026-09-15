@@ -123,6 +123,7 @@ public class MealService {
         row.setSourceType(sourceMode.name());
         row.setOwnerUserId(ownerUserId);
         row.setName(request.name().trim());
+        row.setImageUrl(request.imageUrl() == null || request.imageUrl().isBlank() ? null : request.imageUrl().trim());
         row.setMealTime(jsonService.toJsonArray(slots.mealTime()));
         row.setMood(jsonService.toJsonArray(slots.mood()));
         row.setScene(jsonService.toJsonArray(slots.scene()));
@@ -151,6 +152,7 @@ public class MealService {
                 SourceMode.valueOf(row.getSourceType()),
                 row.getOwnerUserId(),
                 row.getName(),
+                row.getImageUrl(),
                 slots,
                 0
         );

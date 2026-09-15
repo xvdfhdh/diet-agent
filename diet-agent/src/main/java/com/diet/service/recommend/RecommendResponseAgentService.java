@@ -179,7 +179,7 @@ public class RecommendResponseAgentService {
      * MealItem + reason 转为 RecommendedMealOption。
      */
     private RecommendedMealOption toOption(MealItem meal, String reason) {
-        return new RecommendedMealOption(meal.id(), meal.sourceType(), meal.name(), reason, meal.matchScore(), meal.slots());
+        return new RecommendedMealOption(meal.id(), meal.sourceType(), meal.name(), meal.imageUrl(), reason, meal.matchScore(), meal.slots());
     }
 
     /**
@@ -215,6 +215,7 @@ public class RecommendResponseAgentService {
                 option.itemId(),
                 option.sourceType(),
                 option.name(),
+                option.imageUrl(),
                 option.matchedSlots().mealTime(),
                 option.matchedSlots().mood(),
                 option.matchedSlots().scene(),

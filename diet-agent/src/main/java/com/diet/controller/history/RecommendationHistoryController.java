@@ -21,10 +21,11 @@ public class RecommendationHistoryController {
     }
 
     @GetMapping("/history")
-    public List<RecommendationHistoryResponse> today(
+    public List<RecommendationHistoryResponse> list(
             @RequestHeader(value = DietConstants.USER_ID, defaultValue = "1") Long userId,
-            @RequestParam(defaultValue = "20") Integer limit
+            @RequestParam(defaultValue = "20") Integer limit,
+            @RequestParam(defaultValue = "today") String scope
     ) {
-        return historyService.today(userId, limit);
+        return "all".equalsIgnoreCase(scope) ? historyService.recent(userId, limit) : historyService.today(userId, limit);
     }
 }

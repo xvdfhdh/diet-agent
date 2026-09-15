@@ -38,7 +38,7 @@ public class MealRankService {
      */
     private MealItem withRankScore(MealItem item, SlotBundle query) {
         double slotScore = slotScore(item.slots(), query);           // 槽位命中分 [0,1]
-        return new MealItem(item.id(), item.sourceType(), item.ownerUserId(), item.name(), item.slots(), slotScore);
+        return new MealItem(item.id(), item.sourceType(), item.ownerUserId(), item.name(), item.imageUrl(), item.slots(), slotScore);
     }
 
     /** 计算餐食 slots 与查询 slots 的 7 维平均重叠比例。 */

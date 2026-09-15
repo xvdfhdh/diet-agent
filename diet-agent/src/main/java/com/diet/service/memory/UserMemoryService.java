@@ -5,7 +5,11 @@ import com.diet.model.MealItem;
 import com.diet.model.SlotBundle;
 import com.diet.model.UserMemoryResponse;
 import com.diet.model.UserMemoryRow;
+import com.diet.model.UserPreferenceProfile;
+import com.diet.model.UserPreferenceRequest;
+import com.diet.service.slot.SlotOptionService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -22,9 +26,11 @@ public class UserMemoryService {
     private static final Set<String> STABLE_SLOT_KEYS = Set.of("healthGoal", "cuisine", "taste", "convenience");
 
     private final UserMemoryMapper mapper;
+    private final SlotOptionService slotOptionService;
 
-    public UserMemoryService(UserMemoryMapper mapper) {
+    public UserMemoryService(UserMemoryMapper mapper, SlotOptionService slotOptionService) {
         this.mapper = mapper;
+        this.slotOptionService = slotOptionService;
     }
 
     /** 只记忆相对稳定的偏好，心情、场景和餐次仍以本轮表达为准。 */
@@ -98,6 +104,40 @@ public class UserMemoryService {
                 .toList();
     }
 
+    public UserPreferenceProfile preferences(Long userId) {
+        Map<String, List<String>> values = new LinkedHashMap<>();
+        for (UserMemoryRow row : mapper.findPositiveSlotMemories(userId, 100)) {
+            if (STABLE_SLOT_KEYS.contains(row.getMemoryKey())) {
+                values.computeIfAbsent(row.getMemoryKey(), ignored -> new ArrayList<>()).add(row.getMemoryValue());
+            }
+        }
+        return new UserPreferenceProfile(
+                distinct(values.get("healthGoal")),
+                distinct(values.get("cuisine")),
+                distinct(values.get("taste")),
+                distinct(values.get("convenience"))
+        );
+    }
+
+    @Transactional
+    public UserPreferenceProfile replacePreferences(Long userId, UserPreferenceRequest request) {
+        UserPreferenceRequest safe = request == null
+                ? new UserPreferenceRequest(List.of(), List.of(), List.of(), List.of())
+                : request;
+        SlotBundle slots = new SlotBundle(
+                List.of(), List.of(), List.of(),
+                safeList(safe.healthGoal()), safeList(safe.cuisine()),
+                safeList(safe.taste()), safeList(safe.convenience())
+        );
+        slotOptionService.validate(slots);
+        mapper.deleteSlotPreferences(userId);
+        rememberValues(userId, null, "healthGoal", slots.healthGoal(), 5.0, "MANUAL");
+        rememberValues(userId, null, "cuisine", slots.cuisine(), 5.0, "MANUAL");
+        rememberValues(userId, null, "taste", slots.taste(), 5.0, "MANUAL");
+        rememberValues(userId, null, "convenience", slots.convenience(), 5.0, "MANUAL");
+        return new UserPreferenceProfile(slots.healthGoal(), slots.cuisine(), slots.taste(), slots.convenience());
+    }
+
     private Map<String, List<String>> recallTopSlots(Long userId) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         for (UserMemoryRow row : mapper.findPositiveSlotMemories(userId, 50)) {
@@ -117,6 +157,17 @@ public class UserMemoryService {
         return current == null || current.isEmpty()
                 ? (recalled == null ? List.of() : List.copyOf(recalled))
                 : current;
+    }
+
+    private List<String> safeList(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream().filter(value -> value != null && !value.isBlank()).map(String::trim).distinct().toList();
+    }
+
+    private List<String> distinct(List<String> values) {
+        return values == null ? List.of() : List.copyOf(new LinkedHashSet<>(values));
     }
 
     private void rememberValues(

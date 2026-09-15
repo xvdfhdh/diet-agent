@@ -19,6 +19,7 @@ public class MealResponse {
     private Long id;
     private SourceMode sourceType;
     private String name;
+    private String imageUrl;
     private List<String> mealTime;
     private List<String> mood;
     private List<String> scene;
@@ -34,6 +35,7 @@ public class MealResponse {
                 item.id(),
                 item.sourceType(),
                 item.name(),
+                item.imageUrl(),
                 slots.mealTime(),
                 slots.mood(),
                 slots.scene(),

@@ -13,6 +13,7 @@ public class MealItem {
     private SourceMode sourceType;
     private Long ownerUserId;
     private String name;
+    private String imageUrl;
     private SlotBundle slots;
     private double matchScore;
 

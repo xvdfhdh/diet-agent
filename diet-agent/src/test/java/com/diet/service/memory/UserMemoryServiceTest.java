@@ -5,6 +5,8 @@ import com.diet.mapper.UserMemoryMapper;
 import com.diet.model.MealItem;
 import com.diet.model.SlotBundle;
 import com.diet.model.UserMemoryRow;
+import com.diet.model.UserPreferenceRequest;
+import com.diet.service.slot.SlotOptionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +26,7 @@ class UserMemoryServiceTest {
     @BeforeEach
     void setUp() {
         mapper = mock(UserMemoryMapper.class);
-        service = new UserMemoryService(mapper);
+        service = new UserMemoryService(mapper, mock(SlotOptionService.class));
     }
 
     @Test
@@ -49,7 +51,7 @@ class UserMemoryServiceTest {
     @Test
     void negativeMealFeedbackBecomesARecallExclusion() {
         MealItem meal = new MealItem(
-                42L, SourceMode.PUBLIC, null, "麻辣香锅",
+                42L, SourceMode.PUBLIC, null, "麻辣香锅", "/meals/spicy-dry-pot.png",
                 new SlotBundle(List.of("晚餐"), List.of(), List.of(), List.of(), List.of("川菜"), List.of("麻辣"), List.of()),
                 0.8
         );
@@ -57,6 +59,17 @@ class UserMemoryServiceTest {
         service.rememberFeedback(7L, "session-1", meal, "DISLIKE");
 
         verify(mapper).upsert(7L, "MEAL_PREFERENCE", "麻辣香锅", "42", -3.0, "FEEDBACK", "session-1");
+    }
+
+    @Test
+    void manualPreferencesReplaceLearnedSlotMemories() {
+        var request = new UserPreferenceRequest(List.of("高蛋白"), List.of("川菜"), List.of("麻辣"), List.of("快速"));
+
+        var profile = service.replacePreferences(7L, request);
+
+        verify(mapper).deleteSlotPreferences(7L);
+        verify(mapper).upsert(7L, "SLOT_PREFERENCE", "taste", "麻辣", 5.0, "MANUAL", null);
+        assertThat(profile.taste()).containsExactly("麻辣");
     }
 
     private UserMemoryRow memory(String key, String value, double strength) {

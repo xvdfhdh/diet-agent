@@ -19,6 +19,8 @@ public class RecommendedMealOption {
     private SourceMode sourceType;
     /** 餐食名称，必须来自数据库候选。 */
     private String name;
+    /** 餐食图片地址，可为站内路径或 HTTPS URL。 */
+    private String imageUrl;
     /** 推荐理由，由 RecommendAgent 或模板兜底生成。 */
     private String reason;
     /** Java 重排后的归一化分数，范围 0 到 1。 */

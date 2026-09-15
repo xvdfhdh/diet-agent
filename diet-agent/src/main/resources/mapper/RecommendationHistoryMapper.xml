@@ -39,4 +39,13 @@
         LIMIT #{limit}
     </select>
 
+    <select id="findRecent" resultMap="RecommendationHistoryRowMap">
+        SELECT id, user_id, session_id, trace_id, source_mode, user_input,
+               slots_json, speech_text, meals_json, created_at
+        FROM diet_recommendation_history
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

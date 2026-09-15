@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * 饮食推荐多 Agent 编排服务（Orchestrator）。
@@ -163,6 +164,12 @@ public class DietOrchestratorService {
      * 同步处理一轮用户输入并返回完整推荐结果（HTTP 入口对应方法）。
      */
     public ChatResponse dietChat(Long userId, ChatRequest request) {
+        return dietChat(userId, request, ignored -> { });
+    }
+
+    /** 同步执行状态机，同时向 SSE 控制器报告可读的流水线进度。 */
+    public ChatResponse dietChat(Long userId, ChatRequest request, Consumer<String> progress) {
+        Consumer<String> safeProgress = progress == null ? ignored -> { } : progress;
         // 生成本轮唯一 traceId，格式 trace_<32位hex>，贯穿整轮请求的所有 Trace 事件
         String traceId = "trace_" + UUID.randomUUID().toString().replace("-", "");
         // 校验 request 非空且 message 非空白，否则抛业务异常
@@ -175,6 +182,7 @@ public class DietOrchestratorService {
         }
 
         // 从 DB 加载已有会话状态，或按 sessionId/userId 创建新会话，得到 slots/phase/lastRecommendations 等
+        safeProgress.accept("正在理解你的需求…");
         SessionState initialState = sessionStateService.loadOrCreate(request.sessionId(), userId, request.sourceMode());
 
         // 开启 Trace 上下文；try-with-resources 结束时 TraceScope#close 会将整轮事件写入 agent_traces 表
@@ -189,7 +197,7 @@ public class DietOrchestratorService {
                 Object lock = sessionLocks.computeIfAbsent(initialState.sessionId(), key -> new Object());
                 synchronized (lock) {
                     // 在锁内执行完整状态机，处理本轮用户输入
-                    ChatResponse response = handleTurn(userId, request, traceId, initialState);
+                    ChatResponse response = handleTurn(userId, request, traceId, initialState, safeProgress);
                     // Trace 事件：REQUEST_FINISHED | 阶段 HTTP | 输入=ChatRequest | 输出=ChatResponse | 耗时 ms
                     agentTraceService.recordEvent("REQUEST_FINISHED", "HTTP", request, response, elapsedMs(startedAt));
                     // 将最终响应返回给 Controller
@@ -207,7 +215,8 @@ public class DietOrchestratorService {
     /**
      * 在会话锁内执行完整状态机：记消息 → 前置校验 → 意图识别 → 路由分发。
      */
-    private ChatResponse handleTurn(Long userId, ChatRequest request, String traceId, SessionState state) {
+    private ChatResponse handleTurn(Long userId, ChatRequest request, String traceId, SessionState state,
+                                    Consumer<String> progress) {
         // 从会话状态中取出 sessionId，后续落库和 Agent 调用都依赖它
         String sessionId = state.sessionId();
         // 从会话状态中取出数据源模式（PERSONAL / PUBLIC）
@@ -239,6 +248,18 @@ public class DietOrchestratorService {
         // Trace 事件：INTENT_REVISED | 阶段 INTENT | 输入=矫正前 rawIntent | 输出=矫正后 intent
         agentTraceService.recordEvent("INTENT_REVISED", "INTENT", rawIntent, intent);
 
+        progress.accept("正在回忆你的偏好…");
+        var historicalReference = recommendationHistoryService.resolveReference(userId, state.sourceMode(), request.message());
+        if (historicalReference.isPresent()) {
+            var reference = historicalReference.get();
+            state = state.withSlots(reference.slots()).appendLastRecommendations(reference.excludeMealIds());
+            intent = new IntentResult(Intent.MEAL_ADJUST, intent.slots(), Math.max(intent.confidence(), 0.9));
+            agentTraceService.recordEvent(
+                    "HISTORY_REFERENCE_RESOLVED", "MEMORY", request.message(),
+                    Map.of("historyId", reference.historyId(), "anchorMeal", reference.anchorMealName(),
+                            "excludeMealIds", reference.excludeMealIds()));
+        }
+
         // Trace 事件：ROUTE_SELECTED | 阶段 ROUTE | 输入=最终 intent | 输出=路由目标 intent 枚举名
         agentTraceService.recordEvent("ROUTE_SELECTED", "ROUTE", intent, Map.of("route", intent.intent()));
 
@@ -246,11 +267,11 @@ public class DietOrchestratorService {
         return switch (intent.intent()) {
             // 推荐或需澄清：走推荐主链路（澄清由 ClarifyAgent 内部决定）
             case MEAL_RECOMMENDATION, CLARIFY_NEEDED ->
-                    handleRecommendation(sessionId, userId, request.message(), traceId, state, intent);
+                    handleRecommendation(sessionId, userId, request.message(), traceId, state, intent, progress);
             // 调整上轮推荐：排除已推荐 ID，重跑推荐流水线
-            case MEAL_ADJUST -> handleAdjust(sessionId, userId, request.message(), traceId, state, intent);
+            case MEAL_ADJUST -> handleAdjust(sessionId, userId, request.message(), traceId, state, intent, progress);
             // 多餐规划：标记 PLAN 阶段后走推荐流水线
-            case MEAL_PLAN -> handlePlan(sessionId, userId, request.message(), traceId, state, intent);
+            case MEAL_PLAN -> handlePlan(sessionId, userId, request.message(), traceId, state, intent, progress);
             // 健康风险：返回 NutritionGuard 保守提示，不走推荐
             case HEALTH_RISK -> handleHealthRisk(sessionId, traceId, state);
             // 其他无关饮食的内容：返回固定引导文案
@@ -261,7 +282,8 @@ public class DietOrchestratorService {
     /**
      * 推荐主链路：合并槽位 → ClarifyAgent 判追问 → 槽位足够则进入 completeRecommendation。
      */
-    private ChatResponse handleRecommendation(String sessionId, Long userId, String userInput, String traceId, SessionState state, IntentResult intent) {
+    private ChatResponse handleRecommendation(String sessionId, Long userId, String userInput, String traceId,
+                                              SessionState state, IntentResult intent, Consumer<String> progress) {
         // 将历史 slots 与 IntentAgent 本轮识别的 slots 合并（本轮非空覆盖，本轮空保留历史）
         SlotBundle mergedSlots = slotMergeService.merge(state.slots(), intent.slots());
 
@@ -287,7 +309,8 @@ public class DietOrchestratorService {
             return completeAsk(sessionId, traceId, workingState, clarify);
         }
         // 槽位足够：phase 切 RECOMMEND，excludeMealIds 为空
-        return completeRecommendation(sessionId, userId, userInput, traceId, workingState.withPhase(SessionPhase.RECOMMEND), List.of());
+        return completeRecommendation(sessionId, userId, userInput, traceId,
+                workingState.withPhase(SessionPhase.RECOMMEND), List.of(), progress);
     }
 
     private ChatResponse completeAsk(String sessionId, String traceId, SessionState workingState, ClarifyResult clarify) {
@@ -312,7 +335,8 @@ public class DietOrchestratorService {
     /**
      * 调整链路：合并槽位 → 取 excludeMealIds → 重跑推荐流水线。
      */
-    private ChatResponse handleAdjust(String sessionId, Long userId, String userInput, String traceId, SessionState state, IntentResult intent) {
+    private ChatResponse handleAdjust(String sessionId, Long userId, String userInput, String traceId,
+                                      SessionState state, IntentResult intent, Consumer<String> progress) {
         // 合并历史槽位与本轮 IntentAgent 识别的槽位
         SlotBundle mergedSlots = slotMergeService.merge(state.slots(), intent.slots());
         userMemoryService.rememberExplicitPreferences(userId, sessionId, intent.slots());
@@ -329,13 +353,14 @@ public class DietOrchestratorService {
                 .withPhase(SessionPhase.RECOMMEND);
 
         // 进入推荐流水线，仅排除已推荐餐食，实现换一批
-        return completeRecommendation(sessionId, userId, userInput, traceId, workingState, excludeMealIds);
+        return completeRecommendation(sessionId, userId, userInput, traceId, workingState, excludeMealIds, progress);
     }
 
     /**
      * 多餐规划链路：合并槽位 → 标记 PLAN 阶段 → 走推荐流水线。
      */
-    private ChatResponse handlePlan(String sessionId, Long userId, String userInput, String traceId, SessionState state, IntentResult intent) {
+    private ChatResponse handlePlan(String sessionId, Long userId, String userInput, String traceId,
+                                    SessionState state, IntentResult intent, Consumer<String> progress) {
         // 合并历史槽位与本轮槽位
         SlotBundle mergedSlots = slotMergeService.merge(state.slots(), intent.slots());
         userMemoryService.rememberExplicitPreferences(userId, sessionId, intent.slots());
@@ -344,7 +369,7 @@ public class DietOrchestratorService {
         // 构建规划态工作会话：意图=MEAL_PLAN，phase=PLAN
         SessionState workingState = state.withIntent(Intent.MEAL_PLAN).withSlots(mergedSlots).withPhase(SessionPhase.PLAN);
         // 进入推荐流水线，无 excludeMealIds
-        return completeRecommendation(sessionId, userId, userInput, traceId, workingState, List.of());
+        return completeRecommendation(sessionId, userId, userInput, traceId, workingState, List.of(), progress);
     }
 
     /**
@@ -370,7 +395,10 @@ public class DietOrchestratorService {
     /**
      * 完整推荐流水线：检索 → 重排 → LLM 生成理由与口语回复 → Guard 审查 → 持久化并返回。
      */
-    private ChatResponse completeRecommendation(String sessionId, Long userId, String userInput, String traceId, SessionState state, List<Long> excludeMealIds) {
+    private ChatResponse completeRecommendation(String sessionId, Long userId, String userInput, String traceId,
+                                                SessionState state, List<Long> excludeMealIds,
+                                                Consumer<String> progress) {
+        progress.accept("正在筛选合适的餐食…");
         SlotBundle personalizedSlots = userMemoryService.personalize(userId, state.slots());
         LinkedHashSet<Long> effectiveExcludeSet = new LinkedHashSet<>(excludeMealIds == null ? List.of() : excludeMealIds);
         effectiveExcludeSet.addAll(userMemoryService.dislikedMealIds(userId));
@@ -405,6 +433,7 @@ public class DietOrchestratorService {
         }
 
         // 调用 RecommendResponseAgent：top3 候选 + 用户原文 + slots → 推荐理由 + speechText + 卡片
+        progress.accept("正在组织推荐理由…");
         RecommendResponseAgentService.Result merged = recommendResponseAgentService.recommendAndRespond(
                 sessionId, userInput, state.sourceMode(), personalizedSlots, ranked);
 

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.FavoriteMealMapper">
+    <resultMap id="FavoriteMealRowMap" type="com.diet.model.FavoriteMealRow">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="mealId" column="meal_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="mealJson" column="meal_json"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="upsert" parameterType="com.diet.model.FavoriteMealRow" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO diet_favorite_meal (user_id, meal_id, session_id, meal_json, created_at, updated_at)
+        VALUES (#{userId}, #{mealId}, #{sessionId}, #{mealJson}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            session_id = VALUES(session_id),
+            meal_json = VALUES(meal_json),
+            updated_at = NOW()
+    </insert>
+
+    <select id="findByUserId" resultMap="FavoriteMealRowMap">
+        SELECT id, user_id, meal_id, session_id, meal_json, created_at, updated_at
+        FROM diet_favorite_meal
+        WHERE user_id = #{userId}
+        ORDER BY updated_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <delete id="delete">
+        DELETE FROM diet_favorite_meal WHERE user_id = #{userId} AND meal_id = #{mealId}
+    </delete>
+</mapper>
