@@ -82,6 +82,17 @@
         AND owner_user_id = #{userId}
     </select>
 
+    <select id="findAccessibleById" resultMap="MealItemRowMap">
+        SELECT <include refid="MealColumns"/>
+        FROM meal_item
+        WHERE id = #{id}
+          AND (
+              (source_type = 'PUBLIC' AND owner_user_id IS NULL)
+              OR (source_type = 'PERSONAL' AND owner_user_id = #{userId})
+          )
+        LIMIT 1
+    </select>
+
     <select id="findPersonalMeals" resultMap="MealItemRowMap">
         SELECT <include refid="MealColumns"/>
         FROM meal_item

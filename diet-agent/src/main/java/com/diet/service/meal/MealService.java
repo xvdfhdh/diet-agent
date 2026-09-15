@@ -41,6 +41,13 @@ public class MealService {
         return mealMapper.findPublicMeals().stream().map(this::toMealItem).toList();
     }
 
+    public MealItem findAccessibleMeal(Long userId, Long mealId) {
+        if (mealId == null) {
+            return null;
+        }
+        return toMealItem(mealMapper.findAccessibleById(mealId, userId));
+    }
+
     /**
      * PERSONAL 模式空库前置检查。
      * 由 Orchestrator#handleTurn 调用，count > 0 才继续推荐链路。

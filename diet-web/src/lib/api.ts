@@ -1,4 +1,4 @@
-import type { ChatResponse, EvaluationReport, Meal, MealDraft, ModelConfig, ModelConfigDraft, Trace } from '../types'
+import type { ChatResponse, EvaluationReport, Meal, MealDraft, ModelConfig, ModelConfigDraft, RecommendationHistory, Trace, UserMemory } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1/diet').replace(/\/$/, '')
 
@@ -38,6 +38,8 @@ export const api = {
   slotOptions: () => request<Record<string, string[]>>('/slot-options'),
   feedback: (payload: { sessionId: string; itemId: number; action: string; rating?: number; reason?: string }) =>
     request<void>('/feedback', { method: 'POST', body: JSON.stringify(payload) }),
+  recommendationHistory: (limit = 20) => request<RecommendationHistory[]>(`/recommendations/history?limit=${limit}`),
+  memories: (limit = 12) => request<UserMemory[]>(`/memories?limit=${limit}`),
   traces: (days = 7, onlyUnlabeled = false) => {
     const end = new Date()
     const start = new Date(end.getTime() - days * 86_400_000)

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.UserMemoryMapper">
+
+    <resultMap id="UserMemoryRowMap" type="com.diet.model.UserMemoryRow">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="memoryType" column="memory_type"/>
+        <result property="memoryKey" column="memory_key"/>
+        <result property="memoryValue" column="memory_value"/>
+        <result property="strength" column="strength"/>
+        <result property="evidenceCount" column="evidence_count"/>
+        <result property="source" column="source"/>
+        <result property="lastSessionId" column="last_session_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="upsert">
+        INSERT INTO diet_user_memory (
+            user_id, memory_type, memory_key, memory_value, strength,
+            evidence_count, source, last_session_id, created_at, updated_at
+        ) VALUES (
+            #{userId}, #{memoryType}, #{memoryKey}, #{memoryValue}, #{strengthDelta},
+            1, #{source}, #{sessionId}, NOW(), NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            strength = GREATEST(-10, LEAST(10, strength + VALUES(strength))),
+            evidence_count = evidence_count + 1,
+            source = VALUES(source),
+            last_session_id = VALUES(last_session_id),
+            updated_at = NOW()
+    </insert>
+
+    <select id="findPositiveSlotMemories" resultMap="UserMemoryRowMap">
+        SELECT id, user_id, memory_type, memory_key, memory_value, strength,
+               evidence_count, source, last_session_id, created_at, updated_at
+        FROM diet_user_memory
+        WHERE user_id = #{userId}
+          AND memory_type = 'SLOT_PREFERENCE'
+          AND strength &gt; 0
+        ORDER BY strength DESC, updated_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findDislikedMeals" resultMap="UserMemoryRowMap">
+        SELECT id, user_id, memory_type, memory_key, memory_value, strength,
+               evidence_count, source, last_session_id, created_at, updated_at
+        FROM diet_user_memory
+        WHERE user_id = #{userId}
+          AND memory_type = 'MEAL_PREFERENCE'
+          AND strength &lt; 0
+        ORDER BY strength ASC, updated_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findVisible" resultMap="UserMemoryRowMap">
+        SELECT id, user_id, memory_type, memory_key, memory_value, strength,
+               evidence_count, source, last_session_id, created_at, updated_at
+        FROM diet_user_memory
+        WHERE user_id = #{userId}
+          AND strength &gt; 0
+        ORDER BY strength DESC, updated_at DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

@@ -1,4 +1,4 @@
-import { Clock3, Heart, Pencil, Trash2 } from 'lucide-react'
+import { Clock3, Heart, Pencil, ThumbsDown, Trash2 } from 'lucide-react'
 import type { Meal } from '../types'
 
 function imageFor(name: string) {
@@ -14,7 +14,7 @@ export function MealCard({ meal, compact = false, editable = false, onEdit, onDe
   editable?: boolean
   onEdit?: () => void
   onDelete?: () => void
-  onFeedback?: () => void
+  onFeedback?: (action: 'LIKE' | 'DISLIKE') => void
 }) {
   const tags = [...meal.cuisine, ...meal.taste, ...meal.healthGoal].slice(0, 4)
   return (
@@ -30,7 +30,10 @@ export function MealCard({ meal, compact = false, editable = false, onEdit, onDe
           {tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}
         </div>
         {(editable || onFeedback) && <div className="meal-actions">
-          {onFeedback && <button className="text-button" onClick={onFeedback}><Heart size={15} />合口味</button>}
+          {onFeedback && <>
+            <button className="text-button" onClick={() => onFeedback('LIKE')}><Heart size={15} />合口味</button>
+            <button className="text-button muted" onClick={() => onFeedback('DISLIKE')}><ThumbsDown size={14} />不喜欢</button>
+          </>}
           {editable && <>
             <button className="icon-button" aria-label={`编辑${meal.name}`} onClick={onEdit}><Pencil size={16} /></button>
             <button className="icon-button danger" aria-label={`删除${meal.name}`} onClick={onDelete}><Trash2 size={16} /></button>

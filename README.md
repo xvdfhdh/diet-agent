@@ -10,7 +10,7 @@
 
 环境要求：Java 21、Maven 3.9+、Node.js 20+、MySQL 8。
 
-1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库只需执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`。
+1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql` 和 `diet-agent/src/main/resources/db/migrations/20260915_recommendation_history_and_memory.sql`。
 2. 配置本地数据库。建议新建不提交的 `diet-agent/src/main/resources/application-dev.yml`：
 
 ```yaml
@@ -48,6 +48,10 @@ npm run dev
 
 保存配置会使 Agent 缓存失效，新对话立即使用新模型。配置查询接口只返回 Key 的脱敏状态，不返回明文。当前示例把凭证存放在服务端数据库，生产环境应加管理端鉴权，并使用 KMS 或应用层加密实现静态加密。
 
+## 推荐历史与长期记忆
+
+每次真正返回餐食卡片时，后端会把推荐结果写入 `diet_recommendation_history`；首页“今日推荐”按当前用户展示当天历史。`diet_user_memory` 保存跨会话偏好：对话中明确表达的健康目标、菜系、口味和便捷性会累积权重，点赞也会加强相关偏好，负向反馈会让具体餐食在后续推荐中被排除。本轮明确需求始终优先于长期记忆。
+
 ## API
 
 所有业务接口位于 `/api/v1/diet`：
@@ -55,6 +59,8 @@ npm run dev
 - `POST /chat`：餐食推荐对话
 - `/meals/personal`、`/meals/public`：餐食库
 - `POST /feedback`：推荐反馈
+- `GET /recommendations/history`：当前用户今天的推荐历史
+- `GET /memories`：当前用户的长期记忆摘要
 - `/debug/traces`：运行记录与人工标注
 - `POST /evaluations`：离线评测
 - `/model-config`：读取、保存与测试模型配置

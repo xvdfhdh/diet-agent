@@ -14,6 +14,39 @@ export interface Meal {
   matchScore: number
 }
 
+export interface SlotBundle {
+  mealTime: string[]
+  mood: string[]
+  scene: string[]
+  healthGoal: string[]
+  cuisine: string[]
+  taste: string[]
+  convenience: string[]
+}
+
+export interface RecommendationHistory {
+  id: number
+  sessionId: string
+  traceId: string
+  sourceMode: SourceMode
+  userInput: string
+  slots: SlotBundle
+  speechText: string
+  meals: Meal[]
+  createdAt: string
+}
+
+export interface UserMemory {
+  id: number
+  type: 'SLOT_PREFERENCE' | 'MEAL_PREFERENCE'
+  key: string
+  value: string
+  strength: number
+  evidenceCount: number
+  source: string
+  updatedAt: string
+}
+
 export type MealDraft = Omit<Meal, 'id' | 'sourceType' | 'matchScore'>
 
 export interface ChatResponse {
@@ -84,4 +117,3 @@ export interface EvaluationReport {
   metricAverages: Record<string, number>
   traceResults: Array<{ traceId: string; score?: number; metrics: Record<string, number> }>
 }
-

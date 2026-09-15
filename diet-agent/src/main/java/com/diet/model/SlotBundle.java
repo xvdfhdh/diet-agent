@@ -3,10 +3,13 @@ package com.diet.model;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
 @Data
+@NoArgsConstructor
 @Accessors(fluent = true)
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class SlotBundle {
@@ -32,6 +35,7 @@ public class SlotBundle {
         return new SlotBundle(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
+    @JsonIgnore
     public boolean isEmpty() {
         return mealTime.isEmpty()
                 && mood.isEmpty()

@@ -21,10 +21,12 @@ import com.diet.enums.SourceMode;
 import com.diet.service.clarify.ClarifyAgentService;
 import com.diet.service.intent.IntentAgentService;
 import com.diet.service.intent.IntentReviseService;
+import com.diet.service.history.RecommendationHistoryService;
 import com.diet.service.meal.MealRankService;
 import com.diet.service.meal.MealSearchService;
 import com.diet.service.meal.MealService;
 import com.diet.service.recommend.RecommendResponseAgentService;
+import com.diet.service.memory.UserMemoryService;
 import com.diet.service.session.SessionService;
 import com.diet.service.session.SessionStateService;
 import com.diet.service.slot.SlotMergeService;
@@ -32,6 +34,7 @@ import com.diet.service.trace.AgentTraceService;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -110,6 +113,12 @@ public class DietOrchestratorService {
      */
     private final AgentTraceService agentTraceService;
 
+    /** 跨会话保存和召回用户稳定偏好。 */
+    private final UserMemoryService userMemoryService;
+
+    /** 保存用户当天实际看到的推荐结果，供首页历史展示。 */
+    private final RecommendationHistoryService recommendationHistoryService;
+
     /**
      * 会话级锁 Map，key=sessionId，value=锁对象，保证同 session 串行写状态。
      */
@@ -130,7 +139,9 @@ public class DietOrchestratorService {
             RecommendResponseAgentService recommendResponseAgentService,
             MealService mealService,
             RiskGuardService riskGuardService,
-            AgentTraceService agentTraceService
+            AgentTraceService agentTraceService,
+            UserMemoryService userMemoryService,
+            RecommendationHistoryService recommendationHistoryService
     ) {
         this.sessionService = sessionService;                           // 注入消息落库服务
         this.sessionStateService = sessionStateService;                 // 注入会话状态服务
@@ -144,6 +155,8 @@ public class DietOrchestratorService {
         this.mealService = mealService;                                 // 注入餐食服务
         this.riskGuardService = riskGuardService;             // 注入健康守卫
         this.agentTraceService = agentTraceService;                     // 注入链路追踪服务
+        this.userMemoryService = userMemoryService;
+        this.recommendationHistoryService = recommendationHistoryService;
     }
 
     /**
@@ -252,15 +265,19 @@ public class DietOrchestratorService {
         // 将历史 slots 与 IntentAgent 本轮识别的 slots 合并（本轮非空覆盖，本轮空保留历史）
         SlotBundle mergedSlots = slotMergeService.merge(state.slots(), intent.slots());
 
+        userMemoryService.rememberExplicitPreferences(userId, sessionId, intent.slots());
+        SlotBundle personalizedSlots = userMemoryService.personalize(userId, mergedSlots);
+
         // Trace 事件：SLOTS_MERGED | 阶段 SLOT | 输入=stateSlots+intentSlots | 输出=mergedSlots
         agentTraceService.recordEvent("SLOTS_MERGED", "SLOT", Map.of("stateSlots", state.slots(), "intentSlots", intent.slots()), mergedSlots);
+        agentTraceService.recordEvent("LONG_TERM_MEMORY_RECALLED", "MEMORY", mergedSlots, personalizedSlots);
 
         // 基于合并槽位构建工作态：意图固定为 MEAL_RECOMMENDATION
         SessionState workingState = state.withIntent(Intent.MEAL_RECOMMENDATION).withSlots(mergedSlots);
 
         // 【重要】不能完全依靠agent的意图识别,在进入推荐之前,规则层面上也需要判断是否有足够的信息
         // 调用 ClarifyAgent：规则层先判缺失槽位，不足则 LLM 生成追问文案
-        ClarifyResult clarify = clarifyAgentService.decide(sessionId, userInput, mergedSlots);
+        ClarifyResult clarify = clarifyAgentService.decide(sessionId, userInput, personalizedSlots);
         // Trace 事件：CLARIFY_DECISION | 阶段 CLARIFY | 输入=mergedSlots | 输出=ClarifyResult（ASK/READY）
         agentTraceService.recordEvent("CLARIFY_DECISION", "CLARIFY", mergedSlots, clarify);
 
@@ -298,6 +315,7 @@ public class DietOrchestratorService {
     private ChatResponse handleAdjust(String sessionId, Long userId, String userInput, String traceId, SessionState state, IntentResult intent) {
         // 合并历史槽位与本轮 IntentAgent 识别的槽位
         SlotBundle mergedSlots = slotMergeService.merge(state.slots(), intent.slots());
+        userMemoryService.rememberExplicitPreferences(userId, sessionId, intent.slots());
 
         // 从会话状态取出本会话已推荐过的 mealId 列表，供换一批时累积排除
         List<Long> excludeMealIds = state.lastRecommendations() == null ? List.of() : state.lastRecommendations();
@@ -320,6 +338,7 @@ public class DietOrchestratorService {
     private ChatResponse handlePlan(String sessionId, Long userId, String userInput, String traceId, SessionState state, IntentResult intent) {
         // 合并历史槽位与本轮槽位
         SlotBundle mergedSlots = slotMergeService.merge(state.slots(), intent.slots());
+        userMemoryService.rememberExplicitPreferences(userId, sessionId, intent.slots());
         // Trace 事件：PLAN_CONTEXT_RESOLVED | 阶段 PLAN | 输入=intent | 输出=mergedSlots
         agentTraceService.recordEvent("PLAN_CONTEXT_RESOLVED", "PLAN", intent, mergedSlots);
         // 构建规划态工作会话：意图=MEAL_PLAN，phase=PLAN
@@ -352,15 +371,26 @@ public class DietOrchestratorService {
      * 完整推荐流水线：检索 → 重排 → LLM 生成理由与口语回复 → Guard 审查 → 持久化并返回。
      */
     private ChatResponse completeRecommendation(String sessionId, Long userId, String userInput, String traceId, SessionState state, List<Long> excludeMealIds) {
+        SlotBundle personalizedSlots = userMemoryService.personalize(userId, state.slots());
+        LinkedHashSet<Long> effectiveExcludeSet = new LinkedHashSet<>(excludeMealIds == null ? List.of() : excludeMealIds);
+        effectiveExcludeSet.addAll(userMemoryService.dislikedMealIds(userId));
+        List<Long> effectiveExcludeMealIds = List.copyOf(effectiveExcludeSet);
+        agentTraceService.recordEvent(
+                "LONG_TERM_MEMORY_APPLIED",
+                "MEMORY",
+                state.slots(),
+                Map.of("personalizedSlots", personalizedSlots, "excludedMealIds", effectiveExcludeMealIds)
+        );
+
         // 构造检索请求：sourceMode + userId + 当前 slots + excludeMealIds（检索层暂不使用 exclude，在 Rank 层过滤）
-        List<MealItem> candidates = mealSearchService.search(new MealSearchRequest(state.sourceMode(), userId, state.slots(), excludeMealIds));
+        List<MealItem> candidates = mealSearchService.search(new MealSearchRequest(state.sourceMode(), userId, state.slots(), effectiveExcludeMealIds));
         // Trace 事件：MEAL_SEARCHED | 阶段 SEARCH | 输入=slots | 输出=候选数量+candidates 列表
         agentTraceService.recordEvent("MEAL_SEARCHED", "SEARCH", state.slots(), Map.of("candidateCount", candidates.size(), "candidates", candidates));
 
         // 构造排序请求：候选列表 + slots + excludeMealIds，返回 top10
-        List<MealItem> ranked = mealRankService.rank(new MealRankRequest(candidates, state.slots(), excludeMealIds));
+        List<MealItem> ranked = mealRankService.rank(new MealRankRequest(candidates, personalizedSlots, effectiveExcludeMealIds));
         // Trace 事件：MEAL_RANKED | 阶段 RANK | 输入=excludeMealIds | 输出=重排后数量+ranked 列表
-        agentTraceService.recordEvent("MEAL_RANKED", "RANK", Map.of("excludeMealIds", excludeMealIds), Map.of("rankedCount", ranked.size(), "ranked", ranked));
+        agentTraceService.recordEvent("MEAL_RANKED", "RANK", Map.of("excludeMealIds", effectiveExcludeMealIds), Map.of("rankedCount", ranked.size(), "ranked", ranked));
 
         // 结果为空时，按 sourceMode 返回不同的空库提示文案
         if (ranked.isEmpty()) {
@@ -376,7 +406,7 @@ public class DietOrchestratorService {
 
         // 调用 RecommendResponseAgent：top3 候选 + 用户原文 + slots → 推荐理由 + speechText + 卡片
         RecommendResponseAgentService.Result merged = recommendResponseAgentService.recommendAndRespond(
-                sessionId, userInput, state.sourceMode(), state.slots(), ranked);
+                sessionId, userInput, state.sourceMode(), personalizedSlots, ranked);
 
         // 从结果中取出 RecommendResult（含 recommendations 列表和 needDisclaimer 标记）
         RecommendResult recommend = merged.recommend();
@@ -418,6 +448,17 @@ public class DietOrchestratorService {
 
         // 构造最终 ChatResponse：含 speechText、餐食卡片 displayBlocks、nextAction=WAIT_USER
         ChatResponse chatResponse = ChatResponse.answer(sessionId, traceId, response.speechText(), response.displayBlocks(), response.nextAction());
+
+        recommendationHistoryService.record(
+                userId,
+                sessionId,
+                traceId,
+                state.sourceMode(),
+                userInput,
+                personalizedSlots,
+                response.speechText(),
+                response.displayBlocks()
+        );
 
         // Trace 事件：RESPONSE_READY | 阶段 RESPONSE | 输入=savedState | 输出=ChatResponse
         agentTraceService.recordEvent("RESPONSE_READY", "RESPONSE", savedState, chatResponse);

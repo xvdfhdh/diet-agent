@@ -17,6 +17,8 @@ public interface MealMapper {
 
     MealItemRow findPersonalById(@Param("id") Long id, @Param("userId") Long userId);
 
+    MealItemRow findAccessibleById(@Param("id") Long id, @Param("userId") Long userId);
+
     List<MealItemRow> findPersonalMeals(Long userId);
 
     List<MealItemRow> findPublicMeals();
