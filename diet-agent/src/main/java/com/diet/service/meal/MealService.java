@@ -5,6 +5,9 @@ import com.diet.mapper.MealMapper;
 import com.diet.model.MealItem;
 import com.diet.model.MealItemRow;
 import com.diet.model.MealRequest;
+import com.diet.model.MealBulkRequest;
+import com.diet.model.MealBulkResponse;
+import com.diet.model.MealBulkUpdate;
 import com.diet.model.SlotBundle;
 import com.diet.enums.SourceMode;
 import com.diet.service.slot.SlotOptionService;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -81,6 +85,74 @@ public class MealService {
         if (deleted == 0) {
             throw new DietException("个人餐食不存在或无权限删除");
         }
+    }
+
+    @Transactional
+    public MealItem createPublicMeal(MealRequest request) {
+        validateMealRequest(request);
+        MealItemRow row = toRow(null, SourceMode.PUBLIC, null, request);
+        mealMapper.insert(row);
+        return toMealItem(row);
+    }
+
+    @Transactional
+    public MealItem updatePublicMeal(Long mealId, MealRequest request) {
+        validateMealRequest(request);
+        MealItemRow row = toRow(mealId, SourceMode.PUBLIC, null, request);
+        if (mealMapper.updatePublic(row) == 0) {
+            throw new DietException("公共餐食不存在");
+        }
+        return toMealItem(mealMapper.findPublicById(mealId));
+    }
+
+    @Transactional
+    public void deletePublicMeal(Long mealId) {
+        if (mealMapper.deletePublic(mealId) == 0) {
+            throw new DietException("公共餐食不存在");
+        }
+    }
+
+    /** 在一个数据库事务里执行批量新增、修改和删除；任一条失败整体回滚。 */
+    @Transactional
+    public MealBulkResponse bulkPublicMeals(MealBulkRequest request) {
+        if (request == null) {
+            throw new DietException("批量请求不能为空");
+        }
+        List<MealRequest> creates = request.creates() == null ? List.of() : request.creates();
+        List<MealBulkUpdate> updates = request.updates() == null ? List.of() : request.updates();
+        List<Long> deletes = request.deleteIds() == null ? List.of() : request.deleteIds();
+        int total = creates.size() + updates.size() + deletes.size();
+        if (total == 0 || total > 100) {
+            throw new DietException("每次批量操作需包含 1~100 条餐食");
+        }
+        creates.forEach(this::validateMealRequest);
+        for (MealBulkUpdate update : updates) {
+            if (update == null || update.id() == null || update.id() <= 0) {
+                throw new DietException("批量修改需要有效餐食 ID");
+            }
+            validateMealRequest(update.meal());
+        }
+        HashSet<Long> seen = new HashSet<>();
+        for (MealBulkUpdate update : updates) {
+            if (!seen.add(update.id())) throw new DietException("同一餐食不能重复修改或删除");
+        }
+        for (Long id : deletes) {
+            if (id == null || id <= 0 || !seen.add(id)) throw new DietException("删除 ID 无效或与修改冲突");
+        }
+        for (MealRequest create : creates) {
+            mealMapper.insert(toRow(null, SourceMode.PUBLIC, null, create));
+        }
+        for (MealBulkUpdate update : updates) {
+            if (mealMapper.updatePublic(toRow(update.id(), SourceMode.PUBLIC, null, update.meal())) == 0) {
+                throw new DietException("批量修改中存在无效公共餐食 ID: " + update.id());
+            }
+        }
+        for (Long id : deletes) {
+            if (mealMapper.deletePublic(id) == 0) {
+                throw new DietException("批量删除中存在无效公共餐食 ID: " + id);
+            }
+        }
+        return new MealBulkResponse(creates.size(), updates.size(), deletes.size());
     }
 
     /**

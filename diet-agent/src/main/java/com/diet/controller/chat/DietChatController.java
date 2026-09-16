@@ -8,7 +8,7 @@ import com.diet.service.orchestrator.DietOrchestratorService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -38,8 +38,7 @@ public class DietChatController {
      */
     @PostMapping("/chat")
     public ChatResponse dietChat(
-            // 从请求头 X-User-Id 读取用户 ID，缺省为 1 便于本地调试
-            @RequestHeader(value = DietConstants.USER_ID, defaultValue = "1") Long userId,
+            @RequestAttribute(DietConstants.AUTH_USER_ID) Long userId,
             // 从请求体反序列化 ChatRequest（sessionId、message、sourceMode）
             @RequestBody ChatRequest request
     ) {
@@ -50,7 +49,7 @@ public class DietChatController {
     /** SSE 对话接口：先推送流水线状态，再逐段推送最终文本，最后发送完整响应。 */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter dietChatStream(
-            @RequestHeader(value = DietConstants.USER_ID, defaultValue = "1") Long userId,
+            @RequestAttribute(DietConstants.AUTH_USER_ID) Long userId,
             @RequestBody ChatRequest request) {
         SseEmitter emitter = new SseEmitter(120_000L);
         CompletableFuture.runAsync(() -> {

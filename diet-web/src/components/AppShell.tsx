@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react'
-import { BarChart3, BookOpenText, Bookmark, Brain, History, Settings2, Sparkles, UtensilsCrossed } from 'lucide-react'
+import { BarChart3, BookOpenText, Bookmark, Brain, History, LogOut, Settings2, Sparkles, UtensilsCrossed } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../lib/AuthContext'
 
 const navItems = [
   { to: '/', label: '今日推荐', icon: Sparkles },
@@ -8,12 +9,16 @@ const navItems = [
   { to: '/collection', label: '收藏与历史', icon: Bookmark },
   { to: '/preferences', label: '我的偏好', icon: Brain },
   { to: '/meals/public', label: '公共餐食', icon: BookOpenText },
+]
+
+const adminItems = [
   { to: '/traces', label: '运行记录', icon: History },
   { to: '/evaluations', label: '效果评测', icon: BarChart3 },
 ]
 
 export function AppShell({ children }: PropsWithChildren) {
-  const currentUser = localStorage.getItem('diet.userId') || '1'
+  const { user, logout } = useAuth()
+  const visibleNav = user?.role === 'ADMIN' ? [...navItems, ...adminItems] : navItems
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -22,7 +27,7 @@ export function AppShell({ children }: PropsWithChildren) {
           <span><strong>食刻</strong><small>好好吃每一餐</small></span>
         </NavLink>
         <nav className="primary-nav" aria-label="主导航">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {visibleNav.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               <Icon size={18} strokeWidth={1.8} />
               <span>{label}</span>
@@ -30,18 +35,12 @@ export function AppShell({ children }: PropsWithChildren) {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <NavLink to="/settings/models" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          {user?.role === 'ADMIN' && <NavLink to="/settings/models" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             <Settings2 size={18} strokeWidth={1.8} />
             <span>模型设置</span>
-          </NavLink>
-          <label className="user-field">
-            <span>当前用户</span>
-            <input aria-label="当前用户 ID" defaultValue={currentUser} inputMode="numeric" onBlur={(event) => {
-              const value = event.currentTarget.value.trim() || '1'
-              localStorage.setItem('diet.userId', value)
-              event.currentTarget.value = value
-            }} />
-          </label>
+          </NavLink>}
+          <div className="signed-in-user"><span>{user?.username}</span><small>{user?.role === 'ADMIN' ? '管理员' : '普通用户'}</small></div>
+          <button type="button" className="nav-link logout-link" onClick={() => void logout()}><LogOut size={18} /><span>退出登录</span></button>
         </div>
       </aside>
       <main className="page-shell">{children}</main>
@@ -51,9 +50,9 @@ export function AppShell({ children }: PropsWithChildren) {
             <Icon size={19} /><span>{label.replace('今日', '')}</span>
           </NavLink>
         ))}
-        <NavLink to="/settings/models" className={({ isActive }) => isActive ? 'active' : ''}>
+        {user?.role === 'ADMIN' ? <NavLink to="/settings/models" className={({ isActive }) => isActive ? 'active' : ''}>
           <Settings2 size={19} /><span>设置</span>
-        </NavLink>
+        </NavLink> : <button type="button" onClick={() => void logout()}><LogOut size={19} /><span>退出</span></button>}
       </nav>
     </div>
   )

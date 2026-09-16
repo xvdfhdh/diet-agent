@@ -1,21 +1,20 @@
-import type { ChatResponse, ChatStreamEvent, EvaluationReport, FavoriteMeal, Meal, MealDraft, ModelConfig, ModelConfigDraft, RecommendationHistory, Trace, UserMemory, UserPreferenceProfile } from '../types'
+import type { AuthResponse, AuthUser, ChatResponse, ChatStreamEvent, EvaluationReport, FavoriteMeal, Meal, MealBulkRequest, MealBulkResponse, MealDraft, ModelConfig, ModelConfigDraft, RecommendationHistory, Trace, UserMemory, UserPreferenceProfile } from '../types'
+import { authToken, clearAuthToken } from './authStorage'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1/diet').replace(/\/$/, '')
 
-function userId() {
-  return localStorage.getItem('diet.userId') || '1'
-}
-
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = authToken()
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'X-User-Id': userId(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
   })
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')) clearAuthToken()
     const body = await response.text()
     let message = body || `请求失败（${response.status}）`
     try {
@@ -29,6 +28,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  register: (payload: { username: string; password: string }) => request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+  login: (payload: { username: string; password: string }) => request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
+  me: () => request<AuthUser>('/auth/me'),
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
   chat: (payload: { sessionId?: string; message: string; sourceMode: 'PERSONAL' | 'PUBLIC' }) =>
     request<ChatResponse>('/chat', { method: 'POST', body: JSON.stringify({ ...payload, context: {} }) }),
   chatStream: async (
@@ -38,11 +41,14 @@ export const api = {
   ) => {
     const response = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': userId(), Accept: 'text/event-stream' },
+      headers: { 'Content-Type': 'application/json', ...(authToken() ? { Authorization: `Bearer ${authToken()}` } : {}), Accept: 'text/event-stream' },
       body: JSON.stringify({ ...payload, context: {} }),
       signal,
     })
-    if (!response.ok) throw new Error((await response.text()) || `请求失败（${response.status}）`)
+    if (!response.ok) {
+      if (response.status === 401) clearAuthToken()
+      throw new Error((await response.text()) || `请求失败（${response.status}）`)
+    }
     if (!response.body) throw new Error('浏览器不支持流式响应')
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
@@ -63,6 +69,10 @@ export const api = {
   createMeal: (payload: MealDraft) => request<Meal>('/meals/personal', { method: 'POST', body: JSON.stringify(payload) }),
   updateMeal: (id: number, payload: MealDraft) => request<Meal>(`/meals/personal/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteMeal: (id: number) => request<void>(`/meals/personal/${id}`, { method: 'DELETE' }),
+  createPublicMeal: (payload: MealDraft) => request<Meal>('/meals/public', { method: 'POST', body: JSON.stringify(payload) }),
+  updatePublicMeal: (id: number, payload: MealDraft) => request<Meal>(`/meals/public/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deletePublicMeal: (id: number) => request<void>(`/meals/public/${id}`, { method: 'DELETE' }),
+  bulkPublicMeals: (payload: MealBulkRequest) => request<MealBulkResponse>('/meals/public/batch', { method: 'POST', body: JSON.stringify(payload) }),
   slotOptions: () => request<Record<string, string[]>>('/slot-options'),
   feedback: (payload: { sessionId: string; itemId: number; action: string; rating?: number; reason?: string }) =>
     request<void>('/feedback', { method: 'POST', body: JSON.stringify(payload) }),

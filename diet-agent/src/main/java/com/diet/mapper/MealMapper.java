@@ -13,9 +13,15 @@ public interface MealMapper {
 
     int updatePersonal(MealItemRow row);
 
+    int updatePublic(MealItemRow row);
+
     int deletePersonal(@Param("id") Long id, @Param("userId") Long userId);
 
+    int deletePublic(@Param("id") Long id);
+
     MealItemRow findPersonalById(@Param("id") Long id, @Param("userId") Long userId);
+
+    MealItemRow findPublicById(@Param("id") Long id);
 
     MealItemRow findAccessibleById(@Param("id") Long id, @Param("userId") Long userId);
 

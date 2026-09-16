@@ -77,6 +77,23 @@
         AND owner_user_id = #{userId}
     </delete>
 
+    <update id="updatePublic" parameterType="com.diet.model.MealItemRow">
+        UPDATE meal_item
+        SET name = #{name}, image_url = #{imageUrl}, meal_time = #{mealTime}, mood = #{mood},
+            scene = #{scene}, health_goal = #{healthGoal}, cuisine = #{cuisine}, taste = #{taste},
+            convenience = #{convenience}, updated_at = NOW()
+        WHERE id = #{id} AND source_type = 'PUBLIC' AND owner_user_id IS NULL
+    </update>
+
+    <delete id="deletePublic">
+        DELETE FROM meal_item WHERE id = #{id} AND source_type = 'PUBLIC' AND owner_user_id IS NULL
+    </delete>
+
+    <select id="findPublicById" resultMap="MealItemRowMap">
+        SELECT <include refid="MealColumns"/>
+        FROM meal_item WHERE id = #{id} AND source_type = 'PUBLIC' AND owner_user_id IS NULL
+    </select>
+
     <select id="findPersonalById" resultMap="MealItemRowMap">
         SELECT <include refid="MealColumns"/>
         FROM meal_item

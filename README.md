@@ -10,7 +10,7 @@
 
 环境要求：Java 21、Maven 3.9+、Node.js 20+、MySQL 8。
 
-1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql` 和 `20260916_stream_favorites_preferences_images.sql`（每个迁移只执行一次）。
+1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql`、`20260916_stream_favorites_preferences_images.sql`、`20260917_user_auth.sql` 和 `20260918_seeded_meal_taste_option.sql`（每个迁移只执行一次）。
 2. 配置本地数据库。建议新建不提交的 `diet-agent/src/main/resources/application-dev.yml`：
 
 ```yaml
@@ -25,14 +25,25 @@ agentscope:
     api-key: ${DASHSCOPE_API_KEY:}
 ```
 
-3. 启动后端：
+3. 设置 JWT 密钥。每个环境使用独立、随机的至少 32 字节密钥，转为 Base64 后设置 `DIET_JWT_SECRET_BASE64`；没有密钥后端会拒绝启动。PowerShell 示例：
+
+```powershell
+$jwtBytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtBytes)
+$env:DIET_JWT_SECRET_BASE64 = [Convert]::ToBase64String($jwtBytes)
+```
+
+首次创建管理员时，再设置 `DIET_ADMIN_USERNAME`（3～32 位字母、数字或下划线）和 `DIET_ADMIN_PASSWORD`（至少 8 位，最多 72 UTF-8 字节）。启动时仅在数据库中没有启用的管理员账户时创建；不存在内置管理员或默认密码。成功创建后清除这两个环境变量，并妥善保管 JWT 密钥；更换密钥会使所有现有登录失效。
+后端启动时会检查 `diet_user` 的表结构；缺少该迁移时会直接报错，而不是运行一个登录接口必然失败的实例。
+
+4. 启动后端：
 
 ```bash
 cd diet-agent
 mvn spring-boot:run
 ```
 
-4. 启动前端：
+5. 启动前端：
 
 ```bash
 cd diet-web
@@ -46,7 +57,7 @@ npm run dev
 
 前端“模型设置”支持阿里云百炼、OpenAI、DeepSeek、智谱 AI、月之暗面、硅基流动和自定义 OpenAI 兼容服务。可以分别指定 Base URL、接口路径、主模型、轻量模型和 API Key。
 
-保存配置会使 Agent 缓存失效，新对话立即使用新模型。配置查询接口只返回 Key 的脱敏状态，不返回明文。当前示例把凭证存放在服务端数据库，生产环境应加管理端鉴权，并使用 KMS 或应用层加密实现静态加密。
+保存配置会使 Agent 缓存失效，新对话立即使用新模型。配置查询接口只返回 Key 的脱敏状态，不返回明文。模型设置与运行记录、评测仅管理员可访问。当前示例把凭证存放在服务端数据库，生产环境还应使用 KMS 或应用层加密实现静态加密。
 
 ## 推荐历史与长期记忆
 
@@ -69,12 +80,18 @@ npm run dev
 - `/debug/traces`：运行记录与人工标注
 - `POST /evaluations`：离线评测
 - `/model-config`：读取、保存与测试模型配置
+- `POST /auth/register`、`POST /auth/login`：注册普通用户、登录并获取 JWT
+- `GET /auth/me`、`POST /auth/logout`：查询当前账户、注销并使现有令牌失效
+- `POST /meals/public`、`PUT/DELETE /meals/public/{mealId}`：管理员单条维护公共餐食
+- `POST /meals/public/batch`：管理员一次批量新增、修改、删除公共餐食（最多 100 条，失败整体回滚）
 
-开发请求默认使用 `X-User-Id: 1`。这只是本地示例身份，公开部署前应接入真实认证。
+除注册和登录外，所有接口都需要 `Authorization: Bearer <token>`。普通账户可以查看公共库、维护自己的个人库；只有管理员可增删改公共库（包括批量操作）。后端通过 JWT 和数据库当前角色判定权限，前端也隐藏普通用户不应使用的操作。旧 `X-User-Id` 请求头不再作为身份来源；原匿名用户 ID 1 的个人数据不会自动归给新注册账户，如需保留应由数据库管理员确定归属后手动迁移。
 
 ## 验证
 
 ```bash
 cd diet-agent && mvn test
-cd diet-web && npm run build
+cd diet-web && npm test && npm run build
 ```
+
+后端 HTTP 集成测试使用隔离的 H2 内存数据库，不会写入本地 MySQL；前端组件测试使用 jsdom 验证登录、退出与管理员公共库交互。

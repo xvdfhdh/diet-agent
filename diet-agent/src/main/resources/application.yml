@@ -19,6 +19,11 @@ server:
   port: 8080
 
 diet:
+  auth:
+    jwt-secret-base64: ${DIET_JWT_SECRET_BASE64:}
+    token-hours: ${DIET_TOKEN_HOURS:24}
+    admin-username: ${DIET_ADMIN_USERNAME:}
+    admin-password: ${DIET_ADMIN_PASSWORD:}
   llm:
     base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
     endpoint-path: /chat/completions

@@ -4,7 +4,7 @@ import com.diet.constants.DietConstants;
 import com.diet.model.RecommendationHistoryResponse;
 import com.diet.service.history.RecommendationHistoryService;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,7 +22,7 @@ public class RecommendationHistoryController {
 
     @GetMapping("/history")
     public List<RecommendationHistoryResponse> list(
-            @RequestHeader(value = DietConstants.USER_ID, defaultValue = "1") Long userId,
+            @RequestAttribute(DietConstants.AUTH_USER_ID) Long userId,
             @RequestParam(defaultValue = "20") Integer limit,
             @RequestParam(defaultValue = "today") String scope
     ) {

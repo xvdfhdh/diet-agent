@@ -1,5 +1,16 @@
 export type SourceMode = 'PERSONAL' | 'PUBLIC'
 
+export interface AuthUser {
+  id: number
+  username: string
+  role: 'USER' | 'ADMIN'
+}
+
+export interface AuthResponse {
+  token: string
+  user: AuthUser
+}
+
 export interface Meal {
   id: number
   sourceType: SourceMode
@@ -61,6 +72,18 @@ export interface UserPreferenceProfile {
 }
 
 export type MealDraft = Omit<Meal, 'id' | 'sourceType' | 'matchScore'>
+
+export interface MealBulkRequest {
+  creates: MealDraft[]
+  updates: Array<{ id: number; meal: MealDraft }>
+  deleteIds: number[]
+}
+
+export interface MealBulkResponse {
+  created: number
+  updated: number
+  deleted: number
+}
 
 export interface ChatResponse {
   sessionId: string

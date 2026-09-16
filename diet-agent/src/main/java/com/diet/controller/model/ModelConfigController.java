@@ -1,5 +1,6 @@
 package com.diet.controller.model;
 
+import com.diet.config.AdminOnly;
 import com.diet.model.ModelConfigRequest;
 import com.diet.model.ModelConfigResponse;
 import com.diet.model.ModelConnectionTestResponse;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@AdminOnly
 @RequestMapping("/api/v1/diet/model-config")
 public class ModelConfigController {
     private final ModelConfigService modelConfigService;

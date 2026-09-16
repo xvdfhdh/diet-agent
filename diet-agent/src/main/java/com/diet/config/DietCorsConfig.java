@@ -23,7 +23,7 @@ public class DietCorsConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(allowedOriginPatterns)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("Content-Type", "X-User-Id")
+                .allowedHeaders("Content-Type", "Authorization", "Accept")
                 .maxAge(3600);
     }
 }

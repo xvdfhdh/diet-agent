@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.DietUserMapper">
+    <resultMap id="DietUserRowMap" type="com.diet.model.DietUserRow">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="passwordHash" column="password_hash"/>
+        <result property="role" column="role"/>
+        <result property="tokenVersion" column="token_version"/>
+        <result property="enabled" column="enabled"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="Columns">id, username, password_hash, role, token_version, enabled, created_at, updated_at</sql>
+
+    <insert id="insert" parameterType="com.diet.model.DietUserRow" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO diet_user (username, password_hash, role, token_version, enabled, created_at, updated_at)
+        VALUES (#{username}, #{passwordHash}, #{role}, 0, 1, NOW(), NOW())
+    </insert>
+
+    <select id="findByUsername" resultMap="DietUserRowMap">
+        SELECT <include refid="Columns"/> FROM diet_user WHERE username = #{username} LIMIT 1
+    </select>
+
+    <select id="findById" resultMap="DietUserRowMap">
+        SELECT <include refid="Columns"/> FROM diet_user WHERE id = #{id} LIMIT 1
+    </select>
+
+    <select id="countEnabledAdmins" resultType="int">
+        SELECT COUNT(1) FROM diet_user WHERE role = 'ADMIN' AND enabled = 1
+    </select>
+
+    <update id="incrementTokenVersion">
+        UPDATE diet_user SET token_version = token_version + 1, updated_at = NOW() WHERE id = #{id}
+    </update>
+</mapper>
