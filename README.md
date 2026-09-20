@@ -10,7 +10,7 @@
 
 环境要求：Java 21、Maven 3.9+、Node.js 20+、MySQL 8。
 
-1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql`、`20260916_stream_favorites_preferences_images.sql`、`20260917_user_auth.sql` 和 `20260918_seeded_meal_taste_option.sql`（每个迁移只执行一次）。
+1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql`、`20260916_stream_favorites_preferences_images.sql`、`20260917_user_auth.sql`、`20260918_seeded_meal_taste_option.sql` 和 `20260920_daily_assistant.sql`（每个迁移只执行一次）。最后一个迁移会增加餐食详情、周计划、打卡和购物清单表。
 2. 配置本地数据库。建议新建不提交的 `diet-agent/src/main/resources/application-dev.yml`：
 
 ```yaml
@@ -65,6 +65,15 @@ npm run dev
 
 `diet_user_memory` 保存跨会话偏好：对话中明确表达的健康目标、菜系、口味和便捷性会累积权重，收藏会加强相关偏好，负向反馈会让具体餐食在后续推荐中被排除。“我的偏好”页面允许手动覆盖长期画像。本轮明确需求始终优先于长期记忆。
 
+## 日常饮食闭环
+
+- 餐食详情支持做饭、外食或两者皆可，包含耗时、难度、价格、份数、食材步骤、点餐建议、替换菜品和可选营养估算。
+- “本周计划”按早餐、午餐、晚餐、加餐排布，支持拖动、替换、复制、删除、AI 排周、执行打卡和轻量周报。计划保存餐食快照，后续编辑餐食不会改写历史计划。
+- “购物清单”只聚合计划中选择“做饭”的餐食；相同食材且单位相同才合并。重新同步只重建自动项，手工项不会被删除。
+- 首页显示今日计划，可直接标记已吃、跳过或换一道。评分、跳过和“太贵 / 太费时间 / 吃不饱”等原因会写入长期记忆，影响后续推荐。
+
+营养和价格均为可选估算字段，不用于医疗诊断。
+
 ## API
 
 所有业务接口位于 `/api/v1/diet`：
@@ -72,6 +81,14 @@ npm run dev
 - `POST /chat`：餐食推荐对话
 - `POST /chat/stream`：SSE 流式对话（`status`、`delta`、`complete`、`error` 事件）
 - `/meals/personal`、`/meals/public`：餐食库
+- `POST /meals/ai/complete`：根据餐食名称和已填资料补全空白详情
+- `POST /meals/personal/ai-expand`：结合长期偏好和本次自由要求生成个人餐食
+- `GET /meals/{id}`：当前用户可访问的餐食详情
+- `GET /plans?weekStart=`、`POST /plans/items`、`PUT/DELETE /plans/items/{id}`：周计划查询与维护
+- `POST /plans/generate`、`POST /plans/items/{id}/replace`：AI 排周与相似替换
+- `POST /plans/items/{id}/check-in`、`GET /plans/weekly-summary`：执行打卡与周报
+- `GET /shopping-lists?weekStart=`、`POST /shopping-lists/sync`：购物清单查询与同步
+- `POST/PUT/DELETE /shopping-lists/items`：手工购物项与勾选维护
 - `POST /feedback`：推荐反馈
 - `GET /recommendations/history?scope=today|all`：当前用户推荐历史
 - `GET/POST/DELETE /favorites`：收藏夹
@@ -94,4 +111,4 @@ cd diet-agent && mvn test
 cd diet-web && npm test && npm run build
 ```
 
-后端 HTTP 集成测试使用隔离的 H2 内存数据库，不会写入本地 MySQL；前端组件测试使用 jsdom 验证登录、退出与管理员公共库交互。
+后端 HTTP 集成测试使用隔离的 H2 内存数据库，不会写入本地 MySQL；前端组件测试使用 jsdom 验证登录、退出、角色权限、计划打卡和购物清单交互。

@@ -1,9 +1,10 @@
-import { Bookmark, Clock3, Pencil, ThumbsDown, Trash2 } from 'lucide-react'
+import { Bookmark, CalendarPlus, Clock3, Eye, Pencil, ThumbsDown, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { Meal } from '../types'
 
 const FALLBACK_IMAGE = '/meals/chicken-grain-bowl.jpg'
 
-export function MealCard({ meal, compact = false, editable = false, favorited = false, onEdit, onDelete, onFeedback, onFavorite }: {
+export function MealCard({ meal, compact = false, editable = false, favorited = false, onEdit, onDelete, onFeedback, onFavorite, onPlan }: {
   meal: Meal
   compact?: boolean
   editable?: boolean
@@ -11,6 +12,7 @@ export function MealCard({ meal, compact = false, editable = false, favorited = 
   onDelete?: () => void
   onFeedback?: (action: 'LIKE' | 'DISLIKE') => void
   onFavorite?: () => void
+  onPlan?: () => void
   favorited?: boolean
 }) {
   const tags = [...meal.cuisine, ...meal.taste, ...meal.healthGoal].slice(0, 4)
@@ -26,7 +28,9 @@ export function MealCard({ meal, compact = false, editable = false, favorited = 
           {meal.convenience[0] && <span><Clock3 size={14} />{meal.convenience[0]}</span>}
           {tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}
         </div>
-        {(editable || onFeedback || onFavorite) && <div className="meal-actions">
+        <div className="meal-actions">
+          {meal.id > 0 && <Link className="text-button" to={`/meals/${meal.id}`}><Eye size={15} />详情</Link>}
+          {onPlan && <button type="button" className="text-button" onClick={onPlan}><CalendarPlus size={15} />加入计划</button>}
           {onFavorite && <button type="button" className={`text-button ${favorited ? 'favorite-active' : ''}`} onClick={onFavorite}><Bookmark size={15} fill={favorited ? 'currentColor' : 'none'} />{favorited ? '已收藏' : '收藏'}</button>}
           {onFeedback && <>
             <button type="button" className="text-button muted" onClick={() => onFeedback('DISLIKE')}><ThumbsDown size={14} />不喜欢</button>
@@ -35,7 +39,7 @@ export function MealCard({ meal, compact = false, editable = false, favorited = 
             <button type="button" className="icon-button" aria-label={`编辑${meal.name}`} onClick={onEdit}><Pencil size={16} /></button>
             <button type="button" className="icon-button danger" aria-label={`删除${meal.name}`} onClick={onDelete}><Trash2 size={16} /></button>
           </>}
-        </div>}
+        </div>
       </div>
     </article>
   )

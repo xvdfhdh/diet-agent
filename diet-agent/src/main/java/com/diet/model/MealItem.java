@@ -15,7 +15,13 @@ public class MealItem {
     private String name;
     private String imageUrl;
     private SlotBundle slots;
+    private MealDetail detail;
     private double matchScore;
+
+    public MealItem(Long id, SourceMode sourceType, Long ownerUserId, String name, String imageUrl,
+                    SlotBundle slots, double matchScore) {
+        this(id, sourceType, ownerUserId, name, imageUrl, slots, MealDetail.defaults(), matchScore);
+    }
 
     public double matchScore() {
         return matchScore;

@@ -23,7 +23,85 @@ export interface Meal {
   cuisine: string[]
   taste: string[]
   convenience: string[]
+  acquisitionMode?: 'COOK' | 'EAT_OUT' | 'BOTH'
+  prepMinutes?: number
+  difficulty?: string
+  priceMin?: number
+  priceMax?: number
+  defaultServings?: number
+  ingredients?: MealIngredient[]
+  steps?: string[]
+  dineOutTips?: string
+  substitutes?: string[]
+  nutrition?: NutritionSummary
   matchScore: number
+}
+
+export interface MealIngredient { name: string; category: string; quantity?: number; unit?: string }
+export interface NutritionSummary { calories?: number; protein?: number; fat?: number; carbs?: number }
+export type MealPeriod = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK'
+export type AcquisitionMode = 'COOK' | 'EAT_OUT' | 'BOTH'
+
+export interface MealCheckin {
+  id: number
+  actualMealId?: number
+  actualMealName?: string
+  rating?: number
+  satiety?: number
+  reasonCode?: string
+  note?: string
+  actualSpent?: number
+  eatenAt: string
+}
+
+export interface PlanItem {
+  id: number
+  planDate: string
+  mealPeriod: MealPeriod
+  mealId: number
+  meal: Meal
+  acquisitionMode: Exclude<AcquisitionMode, 'BOTH'>
+  servings: number
+  status: 'PLANNED' | 'COMPLETED' | 'SKIPPED' | 'REPLACED'
+  checkin?: MealCheckin
+}
+
+export interface WeeklySummary {
+  weekStart: string
+  plannedCount: number
+  completedCount: number
+  skippedCount: number
+  completionRate: number
+  cookCount: number
+  eatOutCount: number
+  topTastes: string[]
+  topCuisines: string[]
+  topHealthGoals: string[]
+  mostCompletedMeals: string[]
+  mostSkippedMeals: string[]
+  estimatedCost: number
+  actualCost: number
+}
+
+export interface ShoppingItem {
+  id: number
+  name: string
+  category: string
+  quantity?: number
+  unit?: string
+  sourceMealIds: number[]
+  manual: boolean
+  completed: boolean
+}
+
+export interface ShoppingList {
+  id: number
+  weekStart: string
+  syncVersion: number
+  status: string
+  syncedAt?: string
+  needsSync: boolean
+  items: ShoppingItem[]
 }
 
 export interface SlotBundle {

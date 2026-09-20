@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.MealPlanMapper">
+    <resultMap id="PlanMap" type="com.diet.model.MealPlanRow">
+        <id property="id" column="id"/><result property="userId" column="user_id"/>
+        <result property="planDate" column="plan_date"/><result property="mealPeriod" column="meal_period"/>
+        <result property="mealId" column="meal_id"/><result property="mealSnapshot" column="meal_snapshot"/>
+        <result property="acquisitionMode" column="acquisition_mode"/><result property="servings" column="servings"/>
+        <result property="status" column="status"/><result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+    <resultMap id="CheckinMap" type="com.diet.model.MealCheckinRow">
+        <id property="id" column="id"/><result property="userId" column="user_id"/>
+        <result property="planId" column="plan_id"/><result property="actualMealId" column="actual_meal_id"/>
+        <result property="actualMealName" column="actual_meal_name"/><result property="rating" column="rating"/>
+        <result property="satiety" column="satiety"/><result property="reasonCode" column="reason_code"/>
+        <result property="note" column="note"/><result property="actualSpent" column="actual_spent"/>
+        <result property="eatenAt" column="eaten_at"/><result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+    <sql id="PlanColumns">id,user_id,plan_date,meal_period,meal_id,meal_snapshot,acquisition_mode,servings,status,created_at,updated_at</sql>
+    <insert id="upsert" parameterType="com.diet.model.MealPlanRow">
+        INSERT INTO diet_meal_plan (user_id,plan_date,meal_period,meal_id,meal_snapshot,acquisition_mode,servings,status,created_at,updated_at)
+        VALUES (#{userId},#{planDate},#{mealPeriod},#{mealId},#{mealSnapshot},#{acquisitionMode},#{servings},#{status},NOW(),NOW())
+        ON DUPLICATE KEY UPDATE meal_id=VALUES(meal_id),meal_snapshot=VALUES(meal_snapshot),
+          acquisition_mode=VALUES(acquisition_mode),servings=VALUES(servings),status=VALUES(status),updated_at=NOW()
+    </insert>
+    <select id="findBySlot" resultMap="PlanMap">SELECT <include refid="PlanColumns"/> FROM diet_meal_plan WHERE user_id=#{userId} AND plan_date=#{planDate} AND meal_period=#{mealPeriod}</select>
+    <select id="findOwned" resultMap="PlanMap">SELECT <include refid="PlanColumns"/> FROM diet_meal_plan WHERE id=#{id} AND user_id=#{userId}</select>
+    <select id="findRange" resultMap="PlanMap">SELECT <include refid="PlanColumns"/> FROM diet_meal_plan WHERE user_id=#{userId} AND plan_date BETWEEN #{start} AND #{end} ORDER BY plan_date, CASE meal_period WHEN 'BREAKFAST' THEN 1 WHEN 'LUNCH' THEN 2 WHEN 'DINNER' THEN 3 ELSE 4 END</select>
+    <select id="findRecentMealIds" resultType="long">SELECT DISTINCT meal_id FROM diet_meal_plan WHERE user_id=#{userId} AND plan_date &gt;= #{since} ORDER BY meal_id</select>
+    <delete id="deleteOwned">DELETE FROM diet_meal_plan WHERE id=#{id} AND user_id=#{userId}</delete>
+    <update id="updateStatus">UPDATE diet_meal_plan SET status=#{status},updated_at=NOW() WHERE id=#{id} AND user_id=#{userId}</update>
+    <insert id="upsertCheckin" parameterType="com.diet.model.MealCheckinRow">
+        INSERT INTO diet_meal_checkin (user_id,plan_id,actual_meal_id,actual_meal_name,rating,satiety,reason_code,note,actual_spent,eaten_at,created_at,updated_at)
+        VALUES (#{userId},#{planId},#{actualMealId},#{actualMealName},#{rating},#{satiety},#{reasonCode},#{note},#{actualSpent},#{eatenAt},NOW(),NOW())
+        ON DUPLICATE KEY UPDATE actual_meal_id=VALUES(actual_meal_id),actual_meal_name=VALUES(actual_meal_name),
+          rating=VALUES(rating),satiety=VALUES(satiety),reason_code=VALUES(reason_code),note=VALUES(note),
+          actual_spent=VALUES(actual_spent),eaten_at=VALUES(eaten_at),updated_at=NOW()
+    </insert>
+    <select id="findCheckin" resultMap="CheckinMap">SELECT id,user_id,plan_id,actual_meal_id,actual_meal_name,rating,satiety,reason_code,note,actual_spent,eaten_at,created_at,updated_at FROM diet_meal_checkin WHERE plan_id=#{planId} AND user_id=#{userId}</select>
+</mapper>

@@ -8,6 +8,7 @@ import type { Meal } from '../types'
 const mocked = vi.hoisted(() => ({
   me: vi.fn(), login: vi.fn(), register: vi.fn(), logout: vi.fn(),
   meals: vi.fn(), slotOptions: vi.fn(), bulkPublicMeals: vi.fn(),
+  completeMeal: vi.fn(), expandPersonalMeals: vi.fn(), createMeal: vi.fn(),
   recommendationHistory: vi.fn(), memories: vi.fn(), favorites: vi.fn(),
 }))
 
@@ -30,6 +31,8 @@ beforeEach(() => {
   mocked.meals.mockResolvedValue([meal])
   mocked.slotOptions.mockResolvedValue({ mealTime: ['午餐', '晚餐'], taste: ['清淡'] })
   mocked.bulkPublicMeals.mockResolvedValue({ created: 0, updated: 1, deleted: 0 })
+  mocked.completeMeal.mockResolvedValue({ ...meal, id: undefined, sourceType: undefined, matchScore: undefined, name: '土豆炖牛肉', acquisitionMode: 'COOK', prepMinutes: 45, ingredients: [{ name: '土豆', category: '蔬菜', quantity: 2, unit: '个' }], steps: ['牛肉焯水', '加入土豆炖煮'] })
+  mocked.expandPersonalMeals.mockResolvedValue([{ ...meal, id: 12, sourceType: 'PERSONAL', name: '鸡肉蔬菜便当' }])
   mocked.recommendationHistory.mockResolvedValue([])
   mocked.memories.mockResolvedValue([])
   mocked.favorites.mockResolvedValue([])
@@ -144,5 +147,32 @@ describe('登录与公共库角色界面', () => {
     await waitFor(() => expect(mocked.bulkPublicMeals).toHaveBeenNthCalledWith(2, {
       creates: [], updates: [], deleteIds: [meal.id],
     }))
+  })
+
+  it('个人餐食填写名称后可用 AI 补全剩余资料', async () => {
+    sessionStorage.setItem('diet.auth.token', 'user-token')
+    mocked.meals.mockResolvedValue([])
+    page('/meals/personal')
+    fireEvent.click(await screen.findByRole('button', { name: '添加餐食' }))
+    const complete = screen.getByRole('button', { name: 'AI 补全' })
+    expect((complete as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(screen.getByPlaceholderText('例如：土豆炖牛肉'), { target: { value: '土豆炖牛肉' } })
+    expect((complete as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(complete)
+    await waitFor(() => expect(mocked.completeMeal).toHaveBeenCalledWith(expect.objectContaining({ name: '土豆炖牛肉' })))
+    expect(await screen.findByDisplayValue('45')).toBeTruthy()
+    expect(screen.getByDisplayValue('牛肉焯水')).toBeTruthy()
+  })
+
+  it('AI 扩充个人餐食会提交自由偏好和生成数量', async () => {
+    sessionStorage.setItem('diet.auth.token', 'user-token')
+    mocked.meals.mockResolvedValue([])
+    page('/meals/personal')
+    fireEvent.click(await screen.findByRole('button', { name: 'AI 扩充餐食' }))
+    fireEvent.change(screen.getByLabelText('这次想增加什么餐食？（选填）'), { target: { value: '工作日带饭，少辣' } })
+    fireEvent.change(screen.getByLabelText('生成数量'), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: '生成并加入个人餐食' }))
+    await waitFor(() => expect(mocked.expandPersonalMeals).toHaveBeenCalledWith({ preference: '工作日带饭，少辣', count: 5 }))
+    expect(await screen.findByText('AI 已为你新增 1 道个人餐食')).toBeTruthy()
   })
 })

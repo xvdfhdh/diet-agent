@@ -2,17 +2,19 @@ import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { api } from '../lib/api'
 import type { Meal, MealDraft } from '../types'
+import { MealDetailEditors } from './MealDetailEditors'
 
 type Row = { key: string; id?: number; draft: MealDraft }
-const fields: Array<{ key: keyof MealDraft; label: string }> = [
+type SlotKey = 'mealTime' | 'mood' | 'scene' | 'healthGoal' | 'cuisine' | 'taste' | 'convenience'
+const fields: Array<{ key: SlotKey; label: string }> = [
   { key: 'mealTime', label: '时段' }, { key: 'mood', label: '心情' }, { key: 'scene', label: '场景' },
   { key: 'healthGoal', label: '饮食目标' }, { key: 'cuisine', label: '菜系' }, { key: 'taste', label: '口味' },
   { key: 'convenience', label: '便利偏好' },
 ]
-const emptyDraft = (): MealDraft => ({ name: '', imageUrl: '', mealTime: [], mood: [], scene: [], healthGoal: [], cuisine: [], taste: [], convenience: [] })
+const emptyDraft = (): MealDraft => ({ name: '', imageUrl: '', mealTime: [], mood: [], scene: [], healthGoal: [], cuisine: [], taste: [], convenience: [], acquisitionMode: 'BOTH', defaultServings: 1, ingredients: [], steps: [], substitutes: [] })
 
 function draftFromMeal(meal: Meal): MealDraft {
-  return { name: meal.name, imageUrl: meal.imageUrl || '', mealTime: [...meal.mealTime], mood: [...meal.mood], scene: [...meal.scene], healthGoal: [...meal.healthGoal], cuisine: [...meal.cuisine], taste: [...meal.taste], convenience: [...meal.convenience] }
+  return { name: meal.name, imageUrl: meal.imageUrl || '', mealTime: [...meal.mealTime], mood: [...meal.mood], scene: [...meal.scene], healthGoal: [...meal.healthGoal], cuisine: [...meal.cuisine], taste: [...meal.taste], convenience: [...meal.convenience], acquisitionMode: meal.acquisitionMode || 'BOTH', prepMinutes: meal.prepMinutes, difficulty: meal.difficulty, priceMin: meal.priceMin, priceMax: meal.priceMax, defaultServings: meal.defaultServings || 1, ingredients: meal.ingredients || [], steps: meal.steps || [], dineOutTips: meal.dineOutTips, substitutes: meal.substitutes || [], nutrition: meal.nutrition }
 }
 
 export function PublicBatchDialog({ meals, options, onClose, onSaved }: {
@@ -70,6 +72,10 @@ export function PublicBatchDialog({ meals, options, onClose, onSaved }: {
         <header><strong>{index + 1}. {row.id ? '修改公共餐食' : '新增公共餐食'}</strong><button type="button" className="icon-button" aria-label={`移除第 ${index + 1} 行`} onClick={() => setRows((current) => current.filter((item) => item.key !== row.key))}><X size={16} /></button></header>
         <div className="batch-basic"><label className="field"><span>名称</span><input value={row.draft.name} onChange={(event) => updateRow(row.key, { ...row.draft, name: event.target.value })} placeholder="餐食名称" /></label>
           <label className="field"><span>图片地址（选填）</span><input value={row.draft.imageUrl || ''} onChange={(event) => updateRow(row.key, { ...row.draft, imageUrl: event.target.value })} placeholder="/meals/… 或 https://…" /></label></div>
+        <div className="batch-basic"><label className="field"><span>获取方式</span><select value={row.draft.acquisitionMode || 'BOTH'} onChange={(event) => updateRow(row.key, { ...row.draft, acquisitionMode: event.target.value as MealDraft['acquisitionMode'] })}><option value="BOTH">做饭或外食</option><option value="COOK">做饭</option><option value="EAT_OUT">外食</option></select></label><label className="field"><span>耗时 / 难度 / 默认份数</span><div className="inline-inputs"><input type="number" min="0" value={row.draft.prepMinutes ?? ''} onChange={(event) => updateRow(row.key, { ...row.draft, prepMinutes: event.target.value ? Number(event.target.value) : undefined })} placeholder="分钟" /><input value={row.draft.difficulty || ''} onChange={(event) => updateRow(row.key, { ...row.draft, difficulty: event.target.value })} placeholder="难度" /><input type="number" min="1" value={row.draft.defaultServings || 1} onChange={(event) => updateRow(row.key, { ...row.draft, defaultServings: Number(event.target.value) })} /></div></label></div>
+        <div className="batch-basic"><label className="field"><span>价格区间</span><div className="inline-inputs two"><input type="number" min="0" step="0.01" value={row.draft.priceMin ?? ''} onChange={(event) => updateRow(row.key, { ...row.draft, priceMin: numberOrUndefined(event.target.value) })} placeholder="最低" /><input type="number" min="0" step="0.01" value={row.draft.priceMax ?? ''} onChange={(event) => updateRow(row.key, { ...row.draft, priceMax: numberOrUndefined(event.target.value) })} placeholder="最高" /></div></label><label className="field"><span>营养：热量 / 蛋白质 / 脂肪 / 碳水</span><div className="inline-inputs four">{(['calories', 'protein', 'fat', 'carbs'] as const).map((key) => <input key={key} type="number" min="0" step="0.01" value={row.draft.nutrition?.[key] ?? ''} onChange={(event) => updateRow(row.key, { ...row.draft, nutrition: { ...row.draft.nutrition, [key]: numberOrUndefined(event.target.value) } })} placeholder={key} />)}</div></label></div>
+        <MealDetailEditors draft={row.draft} onChange={(draft) => updateRow(row.key, draft)} />
+        <div className="batch-basic"><label className="field"><span>点餐建议</span><textarea value={row.draft.dineOutTips || ''} onChange={(event) => updateRow(row.key, { ...row.draft, dineOutTips: event.target.value })} /></label><label className="field"><span>替换菜品（每行一个）</span><textarea value={(row.draft.substitutes || []).join('\n')} onChange={(event) => updateRow(row.key, { ...row.draft, substitutes: lines(event.target.value) })} /></label></div>
         {fields.map(({ key, label }) => <fieldset className="choice-field" key={key}><legend>{label}</legend><div>{(options[key] || []).map((value) => <button type="button" key={value} className={(row.draft[key] as string[]).includes(value) ? 'selected' : ''} onClick={() => {
           const selected = row.draft[key] as string[]
           updateRow(row.key, { ...row.draft, [key]: selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value] })
@@ -80,3 +86,6 @@ export function PublicBatchDialog({ meals, options, onClose, onSaved }: {
     </div>
   </div>
 }
+
+function lines(value: string) { return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }
+function numberOrUndefined(value: string) { return value === '' ? undefined : Number(value) }

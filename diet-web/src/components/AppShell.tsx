@@ -1,10 +1,12 @@
 import type { PropsWithChildren } from 'react'
-import { BarChart3, BookOpenText, Bookmark, Brain, History, LogOut, Settings2, Sparkles, UtensilsCrossed } from 'lucide-react'
+import { BarChart3, BookOpenText, Bookmark, Brain, CalendarDays, History, LogOut, Settings2, ShoppingBasket, Sparkles, UtensilsCrossed } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 
 const navItems = [
   { to: '/', label: '今日推荐', icon: Sparkles },
+  { to: '/plan', label: '本周计划', icon: CalendarDays },
+  { to: '/shopping', label: '购物清单', icon: ShoppingBasket },
   { to: '/meals/personal', label: '我的餐食', icon: UtensilsCrossed },
   { to: '/collection', label: '收藏与历史', icon: Bookmark },
   { to: '/preferences', label: '我的偏好', icon: Brain },
@@ -15,6 +17,7 @@ const adminItems = [
   { to: '/traces', label: '运行记录', icon: History },
   { to: '/evaluations', label: '效果评测', icon: BarChart3 },
 ]
+const mobileItems = [navItems[0], navItems[1], navItems[2], navItems[4]]
 
 export function AppShell({ children }: PropsWithChildren) {
   const { user, logout } = useAuth()
@@ -45,7 +48,7 @@ export function AppShell({ children }: PropsWithChildren) {
       </aside>
       <main className="page-shell">{children}</main>
       <nav className="mobile-nav" aria-label="移动端导航">
-        {navItems.slice(0, 4).map(({ to, label, icon: Icon }) => (
+        {mobileItems.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'active' : ''}>
             <Icon size={19} /><span>{label.replace('今日', '')}</span>
           </NavLink>

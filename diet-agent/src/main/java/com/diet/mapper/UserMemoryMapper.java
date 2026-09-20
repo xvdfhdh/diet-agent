@@ -22,6 +22,8 @@ public interface UserMemoryMapper {
 
     List<UserMemoryRow> findDislikedMeals(@Param("userId") Long userId, @Param("limit") int limit);
 
+    List<UserMemoryRow> findBehaviorConstraints(@Param("userId") Long userId, @Param("limit") int limit);
+
     List<UserMemoryRow> findVisible(@Param("userId") Long userId, @Param("limit") int limit);
 
     int deleteSlotPreferences(@Param("userId") Long userId);

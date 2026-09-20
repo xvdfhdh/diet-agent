@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 
 @Service
 public class UserMemoryService {
@@ -67,6 +68,21 @@ public class UserMemoryService {
         }
     }
 
+    /** 将计划执行结果沉淀为长期偏好和约束，供后续周计划与对话推荐共同使用。 */
+    public void rememberPlanOutcome(Long userId, MealItem meal, boolean skipped, Integer rating, String reasonCode) {
+        if (meal != null) {
+            if (skipped || (rating != null && rating <= 2)) {
+                rememberFeedback(userId, null, meal, "SKIP");
+            } else if (rating != null && rating >= 4) {
+                rememberFeedback(userId, null, meal, "LIKE");
+            }
+        }
+        if (reasonCode != null && !reasonCode.isBlank()) {
+            mapper.upsert(userId, "BEHAVIOR_CONSTRAINT", "checkinReason",
+                    reasonCode.trim().toUpperCase(Locale.ROOT), 1.0, "CHECKIN", null);
+        }
+    }
+
     /** 本轮已明确的字段绝不覆盖，仅为空字段补入每类最强的一个长期偏好。 */
     public SlotBundle personalize(Long userId, SlotBundle current) {
         SlotBundle safeCurrent = current == null ? SlotBundle.empty() : current;
@@ -92,6 +108,14 @@ public class UserMemoryService {
             }
         }
         return List.copyOf(new LinkedHashSet<>(result));
+    }
+
+    public Set<String> behaviorConstraints(Long userId) {
+        return mapper.findBehaviorConstraints(userId, 50).stream()
+                .map(UserMemoryRow::getMemoryValue)
+                .filter(Objects::nonNull)
+                .map(value -> value.toUpperCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     public List<UserMemoryResponse> visible(Long userId, Integer limit) {

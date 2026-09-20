@@ -7,6 +7,7 @@ import com.diet.model.MealBulkResponse;
 import com.diet.model.MealRequest;
 import com.diet.service.auth.AuthService;
 import com.diet.service.meal.MealService;
+import com.diet.service.meal.MealAiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ class AuthInterceptorTest {
     void setUp() throws Exception {
         authService = mock(AuthService.class);
         interceptor = new AuthInterceptor(authService, new ObjectMapper());
-        publicCreate = new HandlerMethod(new MealController(null),
+        publicCreate = new HandlerMethod(new MealController(null, null),
                 MealController.class.getMethod("createPublic", MealRequest.class));
     }
 
@@ -75,7 +76,7 @@ class AuthInterceptorTest {
     void batchEndpointEnforcesAdminRoleThroughMvcHandlerMapping() throws Exception {
         MealService mealService = mock(MealService.class);
         when(mealService.bulkPublicMeals(any())).thenReturn(new MealBulkResponse(1, 0, 0));
-        var mvc = MockMvcBuilders.standaloneSetup(new MealController(mealService))
+        var mvc = MockMvcBuilders.standaloneSetup(new MealController(mealService, mock(MealAiService.class)))
                 .addInterceptors(interceptor).build();
         String batch = "{\"creates\":[{\"name\":\"测试餐食\",\"mealTime\":[\"午餐\"]}],\"updates\":[],\"deleteIds\":[]}";
         mvc.perform(post("/api/v1/diet/meals/public/batch").contentType("application/json").content(batch))

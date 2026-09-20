@@ -29,6 +29,8 @@ public interface MealMapper {
 
     List<MealItemRow> findPublicMeals();
 
+    List<MealItemRow> findAccessibleMeals(@Param("userId") Long userId);
+
     int countPersonalMeals(Long userId);
 
     List<MealItemRow> search(

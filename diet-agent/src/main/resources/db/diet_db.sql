@@ -221,6 +221,20 @@ CREATE TABLE `meal_item`  (
   `cuisine` json NOT NULL,
   `taste` json NOT NULL,
   `convenience` json NOT NULL,
+  `acquisition_mode` varchar(16) NOT NULL DEFAULT 'BOTH',
+  `prep_minutes` int NULL,
+  `difficulty` varchar(16) NULL,
+  `price_min` decimal(10,2) NULL,
+  `price_max` decimal(10,2) NULL,
+  `default_servings` int NOT NULL DEFAULT 1,
+  `ingredients_json` json NOT NULL,
+  `steps_json` json NOT NULL,
+  `dine_out_tips` varchar(1000) NULL,
+  `substitutes_json` json NOT NULL,
+  `calories` int NULL,
+  `protein` decimal(8,2) NULL,
+  `fat` decimal(8,2) NULL,
+  `carbs` decimal(8,2) NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
@@ -231,11 +245,12 @@ CREATE TABLE `meal_item`  (
 -- ----------------------------
 -- Records of meal_item
 -- ----------------------------
-INSERT INTO `meal_item` VALUES (1, 'PUBLIC', NULL, '番茄鸡蛋面', '/meals/tomato-egg-noodles.jpg', '[\"午餐\", \"晚餐\", \"三餐\"]', '[\"疲惫\", \"低落\"]', '[\"工作\", \"校园\", \"家里\"]', '[\"清淡\", \"养胃\", \"易消化\"]', '[\"家常\", \"粉面\"]', '[\"清淡\", \"番茄味\"]', '[\"快速\", \"一人食\"]', '2026-06-28 17:37:55', '2026-06-28 17:37:55');
-INSERT INTO `meal_item` VALUES (2, 'PUBLIC', NULL, '清汤馄饨', '/meals/clear-wonton.jpg', '[\"早餐\", \"午餐\", \"晚餐\", \"三餐\"]', '[\"疲惫\", \"没胃口\"]', '[\"工作\", \"校园\", \"家里\"]', '[\"清淡\", \"养胃\", \"暖胃\"]', '[\"小吃\", \"粥汤\"]', '[\"清淡\", \"咸鲜\"]', '[\"快速\", \"少餐具\"]', '2026-06-28 17:37:55', '2026-06-28 17:37:55');
-INSERT INTO `meal_item` VALUES (3, 'PUBLIC', NULL, '鸡胸肉轻食碗', '/meals/chicken-grain-bowl.jpg', '[\"午餐\", \"晚餐\"]', '[\"平静\", \"想放松\"]', '[\"工作\", \"运动后\"]', '[\"减脂\", \"高蛋白\", \"低油\", \"均衡\"]', '[\"轻食\"]', '[\"清淡\", \"咸鲜\"]', '[\"快速\", \"一人食\"]', '2026-06-28 17:37:55', '2026-06-28 17:37:55');
-INSERT INTO `meal_item` VALUES (4, 'PUBLIC', NULL, '麻辣香锅', '/meals/spicy-dry-pot.png', '[\"午餐\", \"晚餐\", \"夜宵\"]', '[\"开心\", \"想奖励自己\"]', '[\"周末\", \"聚餐\", \"夜宵\"]', '[\"均衡\", \"补能\"]', '[\"川菜\", \"小吃\"]', '[\"麻辣\", \"烟火气\"]', '[\"慢享\", \"多人共享\"]', '2026-06-28 17:37:55', '2026-06-28 17:37:55');
-INSERT INTO `meal_item` VALUES (5, 'PERSONAL', 1, '土豆炖牛肉', '/meals/beef-potato-stew.png', '[\"晚餐\"]', '[\"平静\"]', '[\"校园\"]', '[\"补能\"]', '[\"湘菜\"]', '[\"辣\"]', '[]', '2026-07-01 23:22:49', '2026-07-01 23:22:49');
+INSERT INTO `meal_item` (`id`,`source_type`,`owner_user_id`,`name`,`image_url`,`meal_time`,`mood`,`scene`,`health_goal`,`cuisine`,`taste`,`convenience`,`acquisition_mode`,`prep_minutes`,`difficulty`,`price_min`,`price_max`,`default_servings`,`ingredients_json`,`steps_json`,`dine_out_tips`,`substitutes_json`,`calories`,`protein`,`fat`,`carbs`,`created_at`,`updated_at`) VALUES
+(1,'PUBLIC',NULL,'番茄鸡蛋面','/meals/tomato-egg-noodles.jpg','[\"午餐\",\"晚餐\",\"三餐\"]','[\"疲惫\",\"低落\"]','[\"工作\",\"校园\",\"家里\"]','[\"清淡\",\"养胃\",\"易消化\"]','[\"家常\",\"粉面\"]','[\"清淡\",\"番茄味\"]','[\"快速\",\"一人食\"]','COOK',15,'简单',8,15,1,'[{\"name\":\"番茄\",\"category\":\"蔬菜\",\"quantity\":1,\"unit\":\"个\"},{\"name\":\"鸡蛋\",\"category\":\"肉蛋奶\",\"quantity\":2,\"unit\":\"个\"},{\"name\":\"面条\",\"category\":\"主食\",\"quantity\":120,\"unit\":\"克\"}]','[\"番茄切块，鸡蛋打散\",\"炒熟鸡蛋后加入番茄\",\"煮面并浇上番茄鸡蛋\"]',NULL,'[]',520,22,15,72,'2026-06-28 17:37:55','2026-06-28 17:37:55'),
+(2,'PUBLIC',NULL,'清汤馄饨','/meals/clear-wonton.jpg','[\"早餐\",\"午餐\",\"晚餐\",\"三餐\"]','[\"疲惫\",\"没胃口\"]','[\"工作\",\"校园\",\"家里\"]','[\"清淡\",\"养胃\",\"暖胃\"]','[\"小吃\",\"粥汤\"]','[\"清淡\",\"咸鲜\"]','[\"快速\",\"少餐具\"]','BOTH',10,'简单',10,22,1,'[{\"name\":\"馄饨\",\"category\":\"主食\",\"quantity\":12,\"unit\":\"个\"}]','[\"水开下馄饨\",\"煮熟后加入清汤和葱花\"]','点清汤底，少油少辣。','[\"清汤水饺\",\"小馄饨\"]',420,18,12,58,'2026-06-28 17:37:55','2026-06-28 17:37:55'),
+(3,'PUBLIC',NULL,'鸡胸肉轻食碗','/meals/chicken-grain-bowl.jpg','[\"午餐\",\"晚餐\"]','[\"平静\",\"想放松\"]','[\"工作\",\"运动后\"]','[\"减脂\",\"高蛋白\",\"低油\",\"均衡\"]','[\"轻食\"]','[\"清淡\",\"咸鲜\"]','[\"快速\",\"一人食\"]','BOTH',20,'简单',18,35,1,'[{\"name\":\"鸡胸肉\",\"category\":\"肉蛋奶\",\"quantity\":150,\"unit\":\"克\"},{\"name\":\"生菜\",\"category\":\"蔬菜\",\"quantity\":100,\"unit\":\"克\"}]','[\"煎熟鸡胸肉\",\"搭配蔬菜和主食装碗\"]','酱汁分开放，优先选杂粮主食。','[\"牛肉轻食碗\",\"金枪鱼沙拉\"]',480,42,14,45,'2026-06-28 17:37:55','2026-06-28 17:37:55'),
+(4,'PUBLIC',NULL,'麻辣香锅','/meals/spicy-dry-pot.png','[\"午餐\",\"晚餐\",\"夜宵\"]','[\"开心\",\"想奖励自己\"]','[\"周末\",\"聚餐\",\"夜宵\"]','[\"均衡\",\"补能\"]','[\"川菜\",\"小吃\"]','[\"麻辣\",\"烟火气\"]','[\"慢享\",\"多人共享\"]','EAT_OUT',NULL,NULL,35,80,2,'[]','[]','多选蔬菜和瘦肉，少选加工丸类，可要求少油。','[\"冒菜\",\"麻辣烫\"]',NULL,NULL,NULL,NULL,'2026-06-28 17:37:55','2026-06-28 17:37:55'),
+(5,'PERSONAL',1,'土豆炖牛肉','/meals/beef-potato-stew.png','[\"晚餐\"]','[\"平静\"]','[\"校园\"]','[\"补能\"]','[\"湘菜\"]','[\"辣\"]','[]','COOK',70,'适中',25,45,2,'[{\"name\":\"牛肉\",\"category\":\"肉蛋奶\",\"quantity\":400,\"unit\":\"克\"},{\"name\":\"土豆\",\"category\":\"蔬菜\",\"quantity\":2,\"unit\":\"个\"}]','[\"牛肉焯水\",\"加入土豆炖至软烂\"]',NULL,'[]',NULL,NULL,NULL,NULL,'2026-07-01 23:22:49','2026-07-01 23:22:49');
 
 -- ----------------------------
 -- Table structure for diet_model_config
@@ -331,6 +346,51 @@ CREATE TABLE `diet_favorite_meal` (
   UNIQUE INDEX `uk_favorite_user_meal` (`user_id` ASC, `meal_id` ASC) USING BTREE,
   INDEX `idx_favorite_user_time` (`user_id` ASC, `updated_at` DESC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Weekly meal plan and execution check-ins
+-- ----------------------------
+DROP TABLE IF EXISTS `diet_meal_checkin`;
+DROP TABLE IF EXISTS `diet_meal_plan`;
+CREATE TABLE `diet_meal_plan` (
+  `id` bigint NOT NULL AUTO_INCREMENT, `user_id` bigint NOT NULL, `plan_date` date NOT NULL,
+  `meal_period` varchar(16) NOT NULL, `meal_id` bigint NOT NULL, `meal_snapshot` json NOT NULL,
+  `acquisition_mode` varchar(16) NOT NULL, `servings` int NOT NULL DEFAULT 1,
+  `status` varchar(16) NOT NULL DEFAULT 'PLANNED', `created_at` datetime NOT NULL, `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_plan_slot` (`user_id`,`plan_date`,`meal_period`),
+  KEY `idx_plan_week` (`user_id`,`plan_date`), CONSTRAINT `fk_plan_user` FOREIGN KEY (`user_id`) REFERENCES `diet_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE `diet_meal_checkin` (
+  `id` bigint NOT NULL AUTO_INCREMENT, `user_id` bigint NOT NULL, `plan_id` bigint NOT NULL,
+  `actual_meal_id` bigint NULL, `actual_meal_name` varchar(128) NULL, `rating` int NULL, `satiety` int NULL,
+  `reason_code` varchar(32) NULL, `note` varchar(500) NULL, `actual_spent` decimal(10,2) NULL,
+  `eaten_at` datetime NULL, `created_at` datetime NOT NULL, `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_checkin_plan` (`plan_id`), KEY `idx_checkin_user_time` (`user_id`,`eaten_at`),
+  CONSTRAINT `fk_checkin_plan` FOREIGN KEY (`plan_id`) REFERENCES `diet_meal_plan` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_checkin_user` FOREIGN KEY (`user_id`) REFERENCES `diet_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- Shopping list: generated items can be rebuilt without deleting manual items
+-- ----------------------------
+DROP TABLE IF EXISTS `diet_shopping_item`;
+DROP TABLE IF EXISTS `diet_shopping_list`;
+CREATE TABLE `diet_shopping_list` (
+  `id` bigint NOT NULL AUTO_INCREMENT, `user_id` bigint NOT NULL, `week_start` date NOT NULL,
+  `sync_version` int NOT NULL DEFAULT 0, `status` varchar(16) NOT NULL DEFAULT 'DRAFT',
+  `synced_at` datetime NULL, `created_at` datetime NOT NULL, `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_shopping_week` (`user_id`,`week_start`),
+  CONSTRAINT `fk_shopping_user` FOREIGN KEY (`user_id`) REFERENCES `diet_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE `diet_shopping_item` (
+  `id` bigint NOT NULL AUTO_INCREMENT, `list_id` bigint NOT NULL, `user_id` bigint NOT NULL,
+  `name` varchar(128) NOT NULL, `category` varchar(64) NOT NULL, `quantity` decimal(12,3) NULL,
+  `unit` varchar(32) NULL, `source_meal_ids` json NOT NULL, `manual` tinyint(1) NOT NULL DEFAULT 0,
+  `completed` tinyint(1) NOT NULL DEFAULT 0, `created_at` datetime NOT NULL, `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`), KEY `idx_shopping_items` (`user_id`,`list_id`,`completed`),
+  CONSTRAINT `fk_shopping_item_list` FOREIGN KEY (`list_id`) REFERENCES `diet_shopping_list` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_shopping_item_user` FOREIGN KEY (`user_id`) REFERENCES `diet_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
 -- Table structure for recommend_feedback

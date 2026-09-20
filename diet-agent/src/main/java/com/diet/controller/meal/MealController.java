@@ -7,6 +7,8 @@ import com.diet.model.MealBulkResponse;
 import com.diet.model.MealRequest;
 import com.diet.model.MealResponse;
 import com.diet.service.meal.MealService;
+import com.diet.service.meal.MealAiService;
+import com.diet.model.MealAiExpandRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,9 +25,11 @@ import java.util.List;
 @RequestMapping("/api/v1/diet/meals")
 public class MealController {
     private final MealService mealService;
+    private final MealAiService mealAiService;
 
-    public MealController(MealService mealService) {
+    public MealController(MealService mealService, MealAiService mealAiService) {
         this.mealService = mealService;
+        this.mealAiService = mealAiService;
     }
 
     @GetMapping("/personal")
@@ -51,6 +55,25 @@ public class MealController {
     @GetMapping("/public")
     public List<MealResponse> findPublic() {
         return mealService.findPublicMeals().stream().map(MealResponse::from).toList();
+    }
+
+    @PostMapping("/ai/complete")
+    public MealRequest completeWithAi(@RequestBody MealRequest request) {
+        return mealAiService.complete(request);
+    }
+
+    @PostMapping("/personal/ai-expand")
+    public List<MealResponse> expandPersonalWithAi(
+            @RequestAttribute(DietConstants.AUTH_USER_ID) Long userId,
+            @RequestBody(required = false) MealAiExpandRequest request) {
+        return mealAiService.expandPersonal(userId, request).stream().map(MealResponse::from).toList();
+    }
+
+    @GetMapping("/{mealId}")
+    public MealResponse detail(@RequestAttribute(DietConstants.AUTH_USER_ID) Long userId, @PathVariable Long mealId) {
+        var meal = mealService.findAccessibleMeal(userId, mealId);
+        if (meal == null) throw new com.diet.exception.DietException("餐食不存在或无权访问");
+        return MealResponse.from(meal);
     }
 
     @AdminOnly

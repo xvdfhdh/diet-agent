@@ -1,9 +1,12 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { ArrowUp, Brain, Check, Clock3, RotateCcw } from 'lucide-react'
+import { ArrowUp, Brain, CalendarCheck, Check, Clock3, RotateCcw } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { MealCard } from '../components/MealCard'
 import { Notice } from '../components/Notice'
 import type { Meal, RecommendationHistory, SourceMode, UserMemory } from '../types'
+import type { PlanItem } from '../types'
+import { AddToPlanDialog } from '../components/AddToPlanDialog'
 
 type Message = { id: string; role: 'user' | 'assistant'; text: string; meals?: Meal[]; traceId?: string; status?: string; streaming?: boolean }
 
@@ -23,19 +26,22 @@ export function ChatPage() {
   const [history, setHistory] = useState<RecommendationHistory[]>([])
   const [memories, setMemories] = useState<UserMemory[]>([])
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
+  const [todayPlans, setTodayPlans] = useState<PlanItem[]>([])
+  const [planMeal, setPlanMeal] = useState<Meal>()
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState({ message: '', tone: 'success' as 'success' | 'error' })
   const streamController = useRef<AbortController | undefined>(undefined)
 
   useEffect(() => {
     let active = true
-    Promise.all([api.meals('public'), api.recommendationHistory(), api.memories(), api.favorites()])
-      .then(([meals, records, remembered, favorites]) => {
+    Promise.all([api.meals('public'), api.recommendationHistory(), api.memories(), api.favorites(), api.plans?.(currentWeek()) ?? Promise.resolve([])])
+      .then(([meals, records, remembered, favorites, plans]) => {
         if (!active) return
         setPublicMeals(meals)
         setHistory(records)
         setMemories(remembered)
         setFavoriteIds(new Set(favorites.map((item) => item.meal.id)))
+        setTodayPlans(plans.filter((item) => item.planDate === today()))
       })
       .catch((error) => {
         if (active) setNotice({ message: error instanceof Error ? error.message : '加载今日推荐失败', tone: 'error' })
@@ -132,6 +138,15 @@ export function ChatPage() {
     }
   }
 
+  async function executeToday(item: PlanItem, action: 'COMPLETE' | 'SKIP' | 'REPLACE') {
+    try {
+      const updated = action === 'REPLACE' ? await api.replacePlanItem(item.id)
+        : await api.checkInPlanItem(item.id, { skipped: action === 'SKIP' })
+      setTodayPlans((plans) => plans.map((entry) => entry.id === item.id ? updated : entry))
+      setNotice({ message: action === 'REPLACE' ? '已换一道类似的' : action === 'SKIP' ? '已记录跳过' : '打卡成功', tone: 'success' })
+    } catch (cause) { setNotice({ message: cause instanceof Error ? cause.message : '操作失败', tone: 'error' }) }
+  }
+
   const recommendations = messages.flatMap((item) => item.meals || []).slice(-3)
   const fallbackMeals = publicMeals.length ? publicMeals.slice(0, 3) : previewMeals
   const visibleMemories = memories.filter((memory) => memory.type === 'SLOT_PREFERENCE').slice(0, 8)
@@ -142,6 +157,8 @@ export function ChatPage() {
           <div><p className="eyebrow">今天 · 一餐一味</p><h1>今天想吃点什么？</h1><p>说说你的时间、口味，或者此刻更在意什么。</p></div>
           {messages.length > 0 && <button className="quiet-button" onClick={() => { streamController.current?.abort(); setLoading(false); setMessages([]); setSessionId(undefined) }}><RotateCcw size={16} />新对话</button>}
         </header>
+
+        <section className="today-plan-strip"><div className="today-plan-heading"><CalendarCheck size={18} /><span><strong>今日计划</strong><small>{todayPlans.length ? `${todayPlans.filter((item) => item.status === 'COMPLETED').length}/${todayPlans.length} 已完成` : '今天还没安排'}</small></span><Link to="/plan">查看整周</Link></div><div className="today-plan-items">{todayPlans.length ? todayPlans.slice(0, 4).map((item) => <article key={item.id} className={`today-plan-card ${item.status.toLowerCase()}`}><div><b>{periodLabel(item.mealPeriod)}</b><Link to={`/meals/${item.mealId}`}>{item.meal.name}</Link><small>{item.acquisitionMode === 'COOK' ? `做饭${item.meal.prepMinutes ? ` · ${item.meal.prepMinutes} 分钟` : ''}` : `外食${item.meal.priceMin != null ? ` · ¥${item.meal.priceMin} 起` : ''}`}</small></div>{(item.status === 'PLANNED' || item.status === 'REPLACED') && <div className="today-plan-actions"><button onClick={() => void executeToday(item, 'COMPLETE')}>已吃</button><button onClick={() => void executeToday(item, 'SKIP')}>跳过</button><button onClick={() => void executeToday(item, 'REPLACE')}>换一道</button></div>}</article>) : <p>从推荐卡片加入今天，或让 AI 安排一周。</p>}</div></section>
 
         <div className="source-switch" aria-label="餐食来源">
           <button className={mode === 'PERSONAL' ? 'active' : ''} onClick={() => setMode('PERSONAL')}>我的餐食{mode === 'PERSONAL' && <Check size={14} />}</button>
@@ -159,7 +176,7 @@ export function ChatPage() {
             <span className="message-author">{message.role === 'user' ? '你' : '食刻'}</span>
             <div className={`message-content ${message.streaming && !message.text ? 'typing' : ''}`}>
               {message.status ? <p className="stream-status"><i /><i /><i />{message.status}</p> : <p>{message.text}</p>}
-              {message.meals?.map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={() => toggleFavorite(meal)} onFeedback={(action) => rememberFeedback(meal, action)} />)}
+              {message.meals?.map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={() => toggleFavorite(meal)} onFeedback={(action) => rememberFeedback(meal, action)} onPlan={() => setPlanMeal(meal)} />)}
             </div>
           </div>)}
         </div>
@@ -176,7 +193,7 @@ export function ChatPage() {
       <aside className="recommendation-rail">
         <div className="rail-heading"><span>今日推荐</span><small>{history.length} 次记录</small></div>
         <div className="rail-section-title"><span>本轮推荐</span><small>{recommendations.length || fallbackMeals.length} 道</small></div>
-        {(recommendations.length ? recommendations : fallbackMeals).map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={meal.id > 0 ? () => toggleFavorite(meal) : undefined} />)}
+        {(recommendations.length ? recommendations : fallbackMeals).map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={meal.id > 0 ? () => toggleFavorite(meal) : undefined} onPlan={meal.id > 0 ? () => setPlanMeal(meal) : undefined} />)}
         {!recommendations.length && <p className="rail-note">先给你三道参考。开始聊聊，推荐会跟着你的描述变化。</p>}
 
         <section className="history-section" aria-labelledby="today-history-title">
@@ -195,9 +212,14 @@ export function ChatPage() {
             <div className="memory-chips">{visibleMemories.map((memory) => <span key={memory.id} title={`记忆强度 ${memory.strength}`}>{memoryLabel(memory.key)} · {memory.value}</span>)}</div>}
         </section>
       </aside>
+      {planMeal && <AddToPlanDialog meal={planMeal} onClose={() => setPlanMeal(undefined)} onAdded={() => setNotice({ message: `已将「${planMeal.name}」加入计划`, tone: 'success' })} />}
     </div>
   )
 }
+
+function today() { return new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10) }
+function currentWeek() { const date = new Date(); const day = date.getDay() || 7; date.setDate(date.getDate() - day + 1); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10) }
+function periodLabel(period: PlanItem['mealPeriod']) { return ({ BREAKFAST: '早', LUNCH: '午', DINNER: '晚', SNACK: '加' } as const)[period] }
 
 const memoryLabels: Record<string, string> = {
   healthGoal: '目标',

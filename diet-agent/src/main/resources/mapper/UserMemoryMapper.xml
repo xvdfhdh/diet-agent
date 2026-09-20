@@ -56,6 +56,17 @@
         LIMIT #{limit}
     </select>
 
+    <select id="findBehaviorConstraints" resultMap="UserMemoryRowMap">
+        SELECT id, user_id, memory_type, memory_key, memory_value, strength,
+               evidence_count, source, last_session_id, created_at, updated_at
+        FROM diet_user_memory
+        WHERE user_id = #{userId}
+          AND memory_type = 'BEHAVIOR_CONSTRAINT'
+          AND strength &gt; 0
+        ORDER BY strength DESC, updated_at DESC
+        LIMIT #{limit}
+    </select>
+
     <select id="findVisible" resultMap="UserMemoryRowMap">
         SELECT id, user_id, memory_type, memory_key, memory_value, strength,
                evidence_count, source, last_session_id, created_at, updated_at

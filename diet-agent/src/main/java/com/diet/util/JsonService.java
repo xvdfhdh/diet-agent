@@ -36,6 +36,31 @@ public class JsonService {
             throw new DietException("JSON 解析失败", e);
         }
     }
+
+    public String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new DietException("JSON 序列化失败", e);
+        }
+    }
+
+    public <T> T fromJson(String json, Class<T> type) {
+        try {
+            return objectMapper.readValue(json, type);
+        } catch (Exception e) {
+            throw new DietException("JSON 解析失败", e);
+        }
+    }
+
+    public <T> List<T> fromJsonList(String json, Class<T> type) {
+        if (json == null || json.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(json, objectMapper.getTypeFactory().constructCollectionType(List.class, type));
+        } catch (Exception e) {
+            throw new DietException("JSON 解析失败", e);
+        }
+    }
 }
 
 

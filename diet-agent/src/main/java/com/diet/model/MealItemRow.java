@@ -3,6 +3,7 @@ package com.diet.model;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Data
 public class MealItemRow {
@@ -18,6 +19,20 @@ public class MealItemRow {
     private String cuisine;
     private String taste;
     private String convenience;
+    private String acquisitionMode;
+    private Integer prepMinutes;
+    private String difficulty;
+    private BigDecimal priceMin;
+    private BigDecimal priceMax;
+    private Integer defaultServings;
+    private String ingredientsJson;
+    private String stepsJson;
+    private String dineOutTips;
+    private String substitutesJson;
+    private Integer calories;
+    private BigDecimal protein;
+    private BigDecimal fat;
+    private BigDecimal carbs;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

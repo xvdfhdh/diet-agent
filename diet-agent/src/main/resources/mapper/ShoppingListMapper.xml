@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.diet.mapper.ShoppingListMapper">
+    <resultMap id="ListMap" type="com.diet.model.ShoppingListRow">
+        <id property="id" column="id"/><result property="userId" column="user_id"/>
+        <result property="weekStart" column="week_start"/><result property="syncVersion" column="sync_version"/>
+        <result property="status" column="status"/><result property="syncedAt" column="synced_at"/>
+        <result property="createdAt" column="created_at"/><result property="updatedAt" column="updated_at"/>
+    </resultMap>
+    <resultMap id="ItemMap" type="com.diet.model.ShoppingItemRow">
+        <id property="id" column="id"/><result property="listId" column="list_id"/>
+        <result property="userId" column="user_id"/><result property="name" column="name"/>
+        <result property="category" column="category"/><result property="quantity" column="quantity"/>
+        <result property="unit" column="unit"/><result property="sourceMealIds" column="source_meal_ids"/>
+        <result property="manual" column="manual"/><result property="completed" column="completed"/>
+        <result property="createdAt" column="created_at"/><result property="updatedAt" column="updated_at"/>
+    </resultMap>
+    <insert id="ensureList">INSERT INTO diet_shopping_list(user_id,week_start,sync_version,status,created_at,updated_at) VALUES(#{userId},#{weekStart},0,'DRAFT',NOW(),NOW()) ON DUPLICATE KEY UPDATE updated_at=updated_at</insert>
+    <select id="findList" resultMap="ListMap">SELECT id,user_id,week_start,sync_version,status,synced_at,created_at,updated_at FROM diet_shopping_list WHERE user_id=#{userId} AND week_start=#{weekStart}</select>
+    <update id="markSynced">UPDATE diet_shopping_list SET sync_version=sync_version+1,synced_at=NOW(),updated_at=NOW() WHERE id=#{id} AND user_id=#{userId}</update>
+    <delete id="deleteGenerated">DELETE FROM diet_shopping_item WHERE list_id=#{listId} AND user_id=#{userId} AND manual=0</delete>
+    <insert id="insertItem" parameterType="com.diet.model.ShoppingItemRow" useGeneratedKeys="true" keyProperty="id">INSERT INTO diet_shopping_item(list_id,user_id,name,category,quantity,unit,source_meal_ids,manual,completed,created_at,updated_at) VALUES(#{listId},#{userId},#{name},#{category},#{quantity},#{unit},#{sourceMealIds},#{manual},#{completed},NOW(),NOW())</insert>
+    <select id="findItems" resultMap="ItemMap">SELECT id,list_id,user_id,name,category,quantity,unit,source_meal_ids,manual,completed,created_at,updated_at FROM diet_shopping_item WHERE list_id=#{listId} AND user_id=#{userId} ORDER BY completed,category,manual,name</select>
+    <select id="findOwnedItem" resultMap="ItemMap">SELECT id,list_id,user_id,name,category,quantity,unit,source_meal_ids,manual,completed,created_at,updated_at FROM diet_shopping_item WHERE id=#{id} AND user_id=#{userId}</select>
+    <update id="updateItem" parameterType="com.diet.model.ShoppingItemRow">UPDATE diet_shopping_item SET name=#{name},category=#{category},quantity=#{quantity},unit=#{unit},completed=#{completed},updated_at=NOW() WHERE id=#{id} AND user_id=#{userId}</update>
+    <delete id="deleteItem">DELETE FROM diet_shopping_item WHERE id=#{id} AND user_id=#{userId}</delete>
+</mapper>

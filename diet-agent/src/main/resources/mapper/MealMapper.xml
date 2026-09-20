@@ -17,6 +17,20 @@
         <result property="cuisine" column="cuisine"/>
         <result property="taste" column="taste"/>
         <result property="convenience" column="convenience"/>
+        <result property="acquisitionMode" column="acquisition_mode"/>
+        <result property="prepMinutes" column="prep_minutes"/>
+        <result property="difficulty" column="difficulty"/>
+        <result property="priceMin" column="price_min"/>
+        <result property="priceMax" column="price_max"/>
+        <result property="defaultServings" column="default_servings"/>
+        <result property="ingredientsJson" column="ingredients_json"/>
+        <result property="stepsJson" column="steps_json"/>
+        <result property="dineOutTips" column="dine_out_tips"/>
+        <result property="substitutesJson" column="substitutes_json"/>
+        <result property="calories" column="calories"/>
+        <result property="protein" column="protein"/>
+        <result property="fat" column="fat"/>
+        <result property="carbs" column="carbs"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
@@ -34,6 +48,9 @@
         cuisine,
         taste,
         convenience,
+        acquisition_mode, prep_minutes, difficulty, price_min, price_max, default_servings,
+        ingredients_json, steps_json, dine_out_tips, substitutes_json,
+        calories, protein, fat, carbs,
         created_at,
         updated_at
     </sql>
@@ -45,10 +62,14 @@
         INSERT INTO meal_item (
         source_type, owner_user_id, name, image_url,
         meal_time, mood, scene, health_goal, cuisine, taste, convenience,
+        acquisition_mode, prep_minutes, difficulty, price_min, price_max, default_servings,
+        ingredients_json, steps_json, dine_out_tips, substitutes_json, calories, protein, fat, carbs,
         created_at, updated_at
         ) VALUES (
         #{sourceType}, #{ownerUserId}, #{name}, #{imageUrl},
         #{mealTime}, #{mood}, #{scene}, #{healthGoal}, #{cuisine}, #{taste}, #{convenience},
+        #{acquisitionMode}, #{prepMinutes}, #{difficulty}, #{priceMin}, #{priceMax}, #{defaultServings},
+        #{ingredientsJson}, #{stepsJson}, #{dineOutTips}, #{substitutesJson}, #{calories}, #{protein}, #{fat}, #{carbs},
         NOW(), NOW()
         )
     </insert>
@@ -64,6 +85,10 @@
         cuisine = #{cuisine},
         taste = #{taste},
         convenience = #{convenience},
+        acquisition_mode = #{acquisitionMode}, prep_minutes = #{prepMinutes}, difficulty = #{difficulty},
+        price_min = #{priceMin}, price_max = #{priceMax}, default_servings = #{defaultServings},
+        ingredients_json = #{ingredientsJson}, steps_json = #{stepsJson}, dine_out_tips = #{dineOutTips},
+        substitutes_json = #{substitutesJson}, calories = #{calories}, protein = #{protein}, fat = #{fat}, carbs = #{carbs},
         updated_at = NOW()
         WHERE id = #{id}
         AND source_type = 'PERSONAL'
@@ -81,7 +106,11 @@
         UPDATE meal_item
         SET name = #{name}, image_url = #{imageUrl}, meal_time = #{mealTime}, mood = #{mood},
             scene = #{scene}, health_goal = #{healthGoal}, cuisine = #{cuisine}, taste = #{taste},
-            convenience = #{convenience}, updated_at = NOW()
+            convenience = #{convenience}, acquisition_mode = #{acquisitionMode}, prep_minutes = #{prepMinutes},
+            difficulty = #{difficulty}, price_min = #{priceMin}, price_max = #{priceMax},
+            default_servings = #{defaultServings}, ingredients_json = #{ingredientsJson}, steps_json = #{stepsJson},
+            dine_out_tips = #{dineOutTips}, substitutes_json = #{substitutesJson}, calories = #{calories},
+            protein = #{protein}, fat = #{fat}, carbs = #{carbs}, updated_at = NOW()
         WHERE id = #{id} AND source_type = 'PUBLIC' AND owner_user_id IS NULL
     </update>
 
@@ -126,6 +155,14 @@
         FROM meal_item
         WHERE source_type = 'PUBLIC'
         AND owner_user_id IS NULL
+        ORDER BY updated_at DESC
+    </select>
+
+    <select id="findAccessibleMeals" resultMap="MealItemRowMap">
+        SELECT <include refid="MealColumns"/>
+        FROM meal_item
+        WHERE (source_type = 'PUBLIC' AND owner_user_id IS NULL)
+           OR (source_type = 'PERSONAL' AND owner_user_id = #{userId})
         ORDER BY updated_at DESC
     </select>
 

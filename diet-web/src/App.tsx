@@ -8,6 +8,9 @@ import { ModelSettingsPage } from './pages/ModelSettingsPage'
 import { CollectionPage } from './pages/CollectionPage'
 import { PreferencesPage } from './pages/PreferencesPage'
 import { AuthPage } from './pages/AuthPage'
+import { PlanPage } from './pages/PlanPage'
+import { ShoppingPage } from './pages/ShoppingPage'
+import { MealDetailPage } from './pages/MealDetailPage'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 
 export default function App() {
@@ -26,6 +29,9 @@ function AppRoutes() {
         <Route path="/meals/personal" element={<MealsPage mode="personal" />} />
         <Route path="/meals/public" element={<MealsPage mode="public" />} />
         <Route path="/collection" element={<CollectionPage />} />
+        <Route path="/plan" element={<PlanPage />} />
+        <Route path="/shopping" element={<ShoppingPage />} />
+        <Route path="/meals/:id" element={<MealDetailPage />} />
         <Route path="/preferences" element={<PreferencesPage />} />
         <Route path="/traces" element={user.role === 'ADMIN' ? <TracesPage /> : <Navigate to="/" replace />} />
         <Route path="/evaluations" element={user.role === 'ADMIN' ? <EvaluationsPage /> : <Navigate to="/" replace />} />

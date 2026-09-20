@@ -18,6 +18,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
+import com.diet.model.MealDetail;
+import com.diet.model.NutritionSummary;
+import com.diet.enums.AcquisitionMode;
 
 /**
  * 餐食数据服务。
@@ -43,6 +46,10 @@ public class MealService {
 
     public List<MealItem> findPublicMeals() {
         return mealMapper.findPublicMeals().stream().map(this::toMealItem).toList();
+    }
+
+    public List<MealItem> findAccessibleMeals(Long userId) {
+        return mealMapper.findAccessibleMeals(userId).stream().map(this::toMealItem).toList();
     }
 
     public MealItem findAccessibleMeal(Long userId, Long mealId) {
@@ -186,6 +193,10 @@ public class MealService {
             throw new DietException("餐次至少选择一个标签");
         }
         slotOptionService.validate(slots);
+        MealDetail detail = request.toDetail();
+        if (detail.defaultServings() < 1 || detail.defaultServings() > 20) throw new DietException("默认份数需在 1~20 之间");
+        if (detail.prepMinutes() != null && (detail.prepMinutes() < 0 || detail.prepMinutes() > 1440)) throw new DietException("预计耗时需在 0~1440 分钟之间");
+        if (detail.priceMin() != null && detail.priceMax() != null && detail.priceMin().compareTo(detail.priceMax()) > 0) throw new DietException("最低价格不能高于最高价格");
     }
 
     private MealItemRow toRow(Long id, SourceMode sourceMode, Long ownerUserId, MealRequest request) {
@@ -203,6 +214,23 @@ public class MealService {
         row.setCuisine(jsonService.toJsonArray(slots.cuisine()));
         row.setTaste(jsonService.toJsonArray(slots.taste()));
         row.setConvenience(jsonService.toJsonArray(slots.convenience()));
+        MealDetail detail = request.toDetail();
+        row.setAcquisitionMode(detail.acquisitionMode().name());
+        row.setPrepMinutes(detail.prepMinutes());
+        row.setDifficulty(detail.difficulty());
+        row.setPriceMin(detail.priceMin());
+        row.setPriceMax(detail.priceMax());
+        row.setDefaultServings(detail.defaultServings());
+        row.setIngredientsJson(jsonService.toJson(detail.ingredients()));
+        row.setStepsJson(jsonService.toJson(detail.steps()));
+        row.setDineOutTips(detail.dineOutTips());
+        row.setSubstitutesJson(jsonService.toJson(detail.substitutes()));
+        if (detail.nutrition() != null) {
+            row.setCalories(detail.nutrition().calories());
+            row.setProtein(detail.nutrition().protein());
+            row.setFat(detail.nutrition().fat());
+            row.setCarbs(detail.nutrition().carbs());
+        }
         return row;
     }
 
@@ -219,6 +247,16 @@ public class MealService {
                 jsonService.fromJsonArray(row.getTaste()),
                 jsonService.fromJsonArray(row.getConvenience())
         );
+        MealDetail detail = new MealDetail(
+                row.getAcquisitionMode() == null ? AcquisitionMode.BOTH : AcquisitionMode.valueOf(row.getAcquisitionMode()),
+                row.getPrepMinutes(), row.getDifficulty(), row.getPriceMin(), row.getPriceMax(),
+                row.getDefaultServings() == null ? 1 : row.getDefaultServings(),
+                jsonService.fromJsonList(row.getIngredientsJson(), com.diet.model.MealIngredient.class),
+                jsonService.fromJsonArray(row.getStepsJson()), row.getDineOutTips(),
+                jsonService.fromJsonArray(row.getSubstitutesJson()),
+                row.getCalories() == null && row.getProtein() == null && row.getFat() == null && row.getCarbs() == null
+                        ? null : new NutritionSummary(row.getCalories(), row.getProtein(), row.getFat(), row.getCarbs())
+        );
         return new MealItem(
                 row.getId(),
                 SourceMode.valueOf(row.getSourceType()),
@@ -226,6 +264,7 @@ public class MealService {
                 row.getName(),
                 row.getImageUrl(),
                 slots,
+                detail,
                 0
         );
     }

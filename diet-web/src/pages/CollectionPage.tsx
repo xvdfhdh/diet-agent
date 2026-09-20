@@ -4,12 +4,15 @@ import { MealCard } from '../components/MealCard'
 import { Notice } from '../components/Notice'
 import { api } from '../lib/api'
 import type { FavoriteMeal, RecommendationHistory } from '../types'
+import type { Meal } from '../types'
+import { AddToPlanDialog } from '../components/AddToPlanDialog'
 
 export function CollectionPage() {
   const [favorites, setFavorites] = useState<FavoriteMeal[]>([])
   const [history, setHistory] = useState<RecommendationHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState({ message: '', tone: 'success' as 'success' | 'error' })
+  const [planMeal, setPlanMeal] = useState<Meal>()
 
   useEffect(() => {
     let active = true
@@ -37,17 +40,18 @@ export function CollectionPage() {
       <section className="collection-section" aria-labelledby="favorites-title">
         <div className="section-heading"><div><Bookmark size={18} /><h2 id="favorites-title">我的收藏</h2></div><small>{favorites.length} 道</small></div>
         {favorites.length === 0 ? <div className="empty-state compact-empty"><h3>还没有收藏</h3><p>在推荐卡片上点“收藏”，它会出现在这里。</p></div> :
-          <div className="meal-list collection-grid">{favorites.map(({ meal }) => <MealCard key={meal.id} meal={meal} favorited onFavorite={() => removeFavorite(meal.id, meal.name)} />)}</div>}
+          <div className="meal-list collection-grid">{favorites.map(({ meal }) => <MealCard key={meal.id} meal={meal} favorited onFavorite={() => removeFavorite(meal.id, meal.name)} onPlan={() => setPlanMeal(meal)} />)}</div>}
       </section>
       <section className="collection-section" aria-labelledby="history-title">
         <div className="section-heading"><div><Clock3 size={18} /><h2 id="history-title">历史推荐</h2></div><small>{history.length} 次</small></div>
         {history.length === 0 ? <div className="empty-state compact-empty"><h3>暂无历史推荐</h3><p>每次生成过餐食卡片的推荐都会自动保留。</p></div> :
           <div className="full-history-list">{history.map((record) => <article className="full-history-entry" key={record.id}>
             <header><div><time dateTime={record.createdAt}>{formatDate(record.createdAt)}</time><span>{record.sourceMode === 'PERSONAL' ? '我的餐食' : '公共餐食'}</span></div><p>“{record.userInput}”</p></header>
-            <div className="history-meal-grid">{record.meals.map((meal) => <MealCard key={`${record.id}-${meal.id}`} meal={meal} compact />)}</div>
+            <div className="history-meal-grid">{record.meals.map((meal) => <MealCard key={`${record.id}-${meal.id}`} meal={meal} compact onPlan={() => setPlanMeal(meal)} />)}</div>
           </article>)}</div>}
       </section>
     </>}
+    {planMeal && <AddToPlanDialog meal={planMeal} onClose={() => setPlanMeal(undefined)} onAdded={() => setNotice({ message: `已将「${planMeal.name}」加入计划`, tone: 'success' })} />}
   </section>
 }
 
