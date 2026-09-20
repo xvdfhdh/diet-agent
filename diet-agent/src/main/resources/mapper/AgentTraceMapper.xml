@@ -14,6 +14,10 @@
         <result property="durationMs" column="duration_ms"/>
         <result property="errorMessage" column="error_message"/>
         <result property="traceJson" column="trace_json"/>
+        <result property="requestedMode" column="requested_mode"/>
+        <result property="actualMode" column="actual_mode"/>
+        <result property="fallbackCode" column="fallback_code"/>
+        <result property="toolCallCount" column="tool_call_count"/>
         <result property="expectedIntent" column="expected_intent"/>
         <result property="expectedSlots" column="expected_slots"/>
         <result property="expectedClarifyAction" column="expected_clarify_action"/>
@@ -27,10 +31,10 @@
     <insert id="insert" parameterType="com.diet.model.RequestTraceRow">
         INSERT INTO diet_request_trace (
         trace_id, session_id, user_id, status, event_count,
-        duration_ms, error_message, trace_json, created_at, updated_at
+        duration_ms, error_message, trace_json, requested_mode, actual_mode, fallback_code, tool_call_count, created_at, updated_at
         ) VALUES (
         #{traceId}, #{sessionId}, #{userId}, #{status}, #{eventCount},
-        #{durationMs}, #{errorMessage}, #{traceJson}, NOW(), NOW()
+        #{durationMs}, #{errorMessage}, #{traceJson}, #{requestedMode}, #{actualMode}, #{fallbackCode}, #{toolCallCount}, NOW(), NOW()
         )
     </insert>
 
@@ -44,6 +48,7 @@
         duration_ms,
         error_message,
         trace_json,
+        requested_mode, actual_mode, fallback_code, tool_call_count,
         expected_intent,
         expected_slots,
         expected_clarify_action,
@@ -68,6 +73,7 @@
         duration_ms,
         error_message,
         trace_json,
+        requested_mode, actual_mode, fallback_code, tool_call_count,
         expected_intent,
         expected_slots,
         expected_clarify_action,
@@ -93,6 +99,7 @@
         duration_ms,
         error_message,
         trace_json,
+        requested_mode, actual_mode, fallback_code, tool_call_count,
         expected_intent,
         expected_slots,
         expected_clarify_action,

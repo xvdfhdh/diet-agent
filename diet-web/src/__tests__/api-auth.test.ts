@@ -40,3 +40,10 @@ it('计划、打卡和购物接口使用约定的路径与 JSON 请求体', asyn
   expect(fetch).toHaveBeenNthCalledWith(2, '/api/v1/diet/plans/items/9/check-in', expect.objectContaining({ method: 'POST', body: '{"rating":5,"satiety":4}' }))
   expect(fetch).toHaveBeenNthCalledWith(3, '/api/v1/diet/shopping-lists/sync?weekStart=2026-09-21', expect.objectContaining({ method: 'POST' }))
 })
+
+it('智能推荐模式随对话请求发送到后端', async () => {
+  const fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) })
+  vi.stubGlobal('fetch', fetch)
+  await api.chat({ message: '推荐午餐', sourceMode: 'PUBLIC', recommendationMode: 'AGENT' })
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(expect.objectContaining({ recommendationMode: 'AGENT' }))
+})

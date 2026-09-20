@@ -13,6 +13,9 @@ import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.model.Model;
 import io.agentscope.core.model.OpenAIChatModel;
+import io.agentscope.core.tool.Tool;
+import io.agentscope.core.tool.ToolParam;
+import io.agentscope.core.tool.Toolkit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class ModelConfigService {
@@ -118,12 +122,50 @@ public class ModelConfigService {
                     .build();
             Msg response = probe.call(Msg.builder().role(MsgRole.USER).textContent("只回复 OK").build()).block();
             if (response == null || response.getTextContent() == null || response.getTextContent().isBlank()) {
-                return new ModelConnectionTestResponse(false, elapsedMs(startedAt), "接口已响应，但没有返回文本");
+                return new ModelConnectionTestResponse(false, elapsedMs(startedAt), "接口已响应，但没有返回文本", null);
             }
-            return new ModelConnectionTestResponse(true, elapsedMs(startedAt), "连接成功，模型已返回响应");
+            boolean toolsSupported = testToolCalling(candidate);
+            return new ModelConnectionTestResponse(true, elapsedMs(startedAt),
+                    toolsSupported ? "文本调用正常，工具调用正常" : "文本调用正常，但工具调用未通过",
+                    toolsSupported);
         } catch (Exception error) {
             String detail = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
-            return new ModelConnectionTestResponse(false, elapsedMs(startedAt), "连接失败：" + abbreviate(detail, 220));
+            return new ModelConnectionTestResponse(false, elapsedMs(startedAt),
+                    "连接失败：" + abbreviate(detail, 220), null);
+        }
+    }
+
+    private boolean testToolCalling(Snapshot candidate) {
+        try {
+            AtomicBoolean called = new AtomicBoolean();
+            Toolkit toolkit = new Toolkit();
+            toolkit.registerTool(new ToolCapabilityProbe(called));
+            ReActAgent probe = ReActAgent.builder()
+                    .name("diet_model_tool_probe")
+                    .model(createModel(candidate, candidate.mainModel()))
+                    .sysPrompt("必须调用 diet_echo 工具并传入 ping；工具返回后只回复 OK。")
+                    .toolkit(toolkit)
+                    .memory(new InMemoryMemory())
+                    .maxIters(3)
+                    .build();
+            probe.call(Msg.builder().role(MsgRole.USER).textContent("请调用工具完成测试").build()).block();
+            return called.get();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public static final class ToolCapabilityProbe {
+        private final AtomicBoolean called;
+
+        private ToolCapabilityProbe(AtomicBoolean called) {
+            this.called = called;
+        }
+
+        @Tool(name = "diet_echo", description = "连接测试工具，原样返回输入")
+        public String echo(@ToolParam(name = "value", required = true, description = "必须传 ping") String value) {
+            called.set(true);
+            return value;
         }
     }
 

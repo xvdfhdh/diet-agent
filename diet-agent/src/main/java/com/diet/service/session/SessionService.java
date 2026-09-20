@@ -5,6 +5,10 @@ import com.diet.mapper.SessionMapper;
 import com.diet.model.ConversationTurn;
 import com.diet.model.SessionMessageRow;
 import com.diet.model.SessionRow;
+import com.diet.model.SessionSummaryResponse;
+import com.diet.model.SessionMessageResponse;
+import com.diet.enums.SourceMode;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.diet.util.JsonService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -87,6 +91,39 @@ public class SessionService {
         return rows.stream()
                 .map(this::toConversationTurn)
                 .toList();
+    }
+
+    /** 查询当前用户最近的会话，用于前端恢复完整聊天，而不只查看推荐卡片历史。 */
+    public List<SessionSummaryResponse> recentSessions(Long userId, Integer requestedLimit) {
+        int limit = requestedLimit == null ? 20 : Math.max(1, Math.min(requestedLimit, 50));
+        return sessionMapper.listRecentSessions(userId, limit).stream().map(row -> {
+            List<SessionMessageRow> recent = sessionMapper.listRecentMessages(row.getId(), userId, 1);
+            String preview = recent.isEmpty() ? "新会话" : summarize(recent.get(0).getContent());
+            return new SessionSummaryResponse(row.getId(), row.getPhase(), sourceMode(row), preview,
+                    sessionMapper.countMessages(row.getId(), userId), row.getCreatedAt(), row.getUpdatedAt());
+        }).toList();
+    }
+
+    /** 按时间正序读取一个归属当前用户的会话消息。 */
+    public List<SessionMessageResponse> messages(Long userId, String sessionId, Integer requestedLimit) {
+        if (sessionId == null || sessionId.isBlank() || sessionMapper.findById(sessionId, userId) == null) {
+            throw new com.diet.exception.DietException("会话不存在或无权访问");
+        }
+        int limit = requestedLimit == null ? 200 : Math.max(1, Math.min(requestedLimit, 500));
+        List<SessionMessageRow> rows = sessionMapper.listRecentMessages(sessionId, userId, limit);
+        Collections.reverse(rows);
+        return rows.stream().map(row -> new SessionMessageResponse(row.getId(), row.getRole(), row.getContent(),
+                row.getIntent(), row.getAgentTraceId(), row.getCreatedAt())).toList();
+    }
+
+    private SourceMode sourceMode(SessionRow row) {
+        try {
+            JsonNode root = jsonService.fromJson(row.getSlots(), JsonNode.class);
+            String value = root.path("_meta").path("sourceMode").asText("PUBLIC");
+            return SourceMode.valueOf(value);
+        } catch (Exception ignored) {
+            return SourceMode.PUBLIC;
+        }
     }
 
     /** 将数据库消息行映射为 IntentAgent 使用的短期上下文摘要。 */

@@ -51,6 +51,10 @@ CREATE TABLE `diet_request_trace`  (
   `duration_ms` bigint NULL DEFAULT NULL,
   `error_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
   `trace_json` json NOT NULL,
+  `requested_mode` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'STANDARD',
+  `actual_mode` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'STANDARD',
+  `fallback_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
+  `tool_call_count` int NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
   `expected_intent` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
@@ -64,6 +68,7 @@ CREATE TABLE `diet_request_trace`  (
   INDEX `idx_request_trace_session`(`session_id` ASC, `created_at` ASC) USING BTREE,
   INDEX `idx_request_trace_user`(`user_id` ASC, `created_at` ASC) USING BTREE,
   INDEX `idx_request_trace_status`(`status` ASC, `created_at` ASC) USING BTREE,
+  INDEX `idx_trace_execution_mode`(`requested_mode` ASC, `actual_mode` ASC, `created_at` ASC) USING BTREE,
   INDEX `idx_request_trace_label`(`expected_intent` ASC, `labeled_at` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 20 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 

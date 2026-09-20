@@ -53,6 +53,10 @@ public class MealPlanService {
         return mapper.findRange(userId, start, start.plusDays(6));
     }
 
+    public PlanItemResponse findOwned(Long userId, Long id) {
+        return toResponse(userId, requireOwned(userId, id));
+    }
+
     @Transactional
     public PlanItemResponse add(Long userId, PlanItemRequest request) {
         validateRequest(request);

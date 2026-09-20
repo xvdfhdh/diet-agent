@@ -78,4 +78,19 @@
         LIMIT #{limit}
     </select>
 
+    <select id="listRecentSessions" resultMap="SessionRowMap">
+        SELECT id, user_id, phase, slots, last_recommendations, created_at, updated_at
+        FROM diet_sessions
+        WHERE user_id = #{userId}
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countMessages" resultType="int">
+        SELECT COUNT(*)
+        FROM diet_messages m
+        INNER JOIN diet_sessions s ON s.id = m.session_id AND s.user_id = #{userId}
+        WHERE m.session_id = #{sessionId}
+    </select>
+
 </mapper>

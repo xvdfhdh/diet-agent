@@ -21,9 +21,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class MealAiService {
+    private static final Pattern NUMBER = Pattern.compile("-?\\d+(?:\\.\\d+)?");
     private static final String SYSTEM_PROMPT = """
             你是日常餐食资料助手。只返回合法 JSON，不要 Markdown、解释或额外文字。
             营养与价格只能给出保守估算，不能声称医疗效果。
@@ -87,15 +91,15 @@ public class MealAiService {
                 dineOutTips,substitutes,nutrition。食材和步骤应具体、适合日常执行。
                 """.formatted(count, profile, freePreference.isBlank() ? "无额外要求" : freePreference,
                 existingNames, options);
-        JsonNode root = llmJsonService.parseObject(call(prompt));
-        JsonNode mealsNode = root.path("meals");
+        JsonNode root = llmJsonService.parseValue(call(prompt));
+        JsonNode mealsNode = mealArray(root);
         if (!mealsNode.isArray() || mealsNode.isEmpty()) throw new DietException("AI 没有生成有效餐食，请调整偏好后重试");
         LinkedHashSet<String> usedNames = existingNames.stream().map(this::nameKey)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         List<MealRequest> drafts = new ArrayList<>();
         for (JsonNode node : mealsNode) {
             if (drafts.size() >= count) break;
-            MealRequest parsed = sanitize(parseMeal(node.toString()), options, null);
+            MealRequest parsed = sanitize(parseMealNode(node), options, null);
             if (parsed.name() != null && usedNames.add(nameKey(parsed.name()))) drafts.add(parsed);
         }
         if (drafts.isEmpty()) throw new DietException("AI 生成的餐食与个人库重复，请换一种偏好重试");
@@ -123,8 +127,80 @@ public class MealAiService {
     }
 
     private MealRequest parseMeal(String content) {
-        JsonNode node = llmJsonService.parseObject(content);
-        return jsonService.fromJson(node.toString(), MealRequest.class);
+        JsonNode node = llmJsonService.parseValue(content);
+        if (node.isObject() && node.path("meal").isObject()) node = node.path("meal");
+        return parseMealNode(node);
+    }
+
+    private JsonNode mealArray(JsonNode root) {
+        if (root.isArray()) return root;
+        JsonNode node = root.path("meals");
+        if (!node.isArray() && root.path("data").isArray()) node = root.path("data");
+        if (!node.isArray() && root.path("data").path("meals").isArray()) node = root.path("data").path("meals");
+        if (node.isTextual()) {
+            try { node = llmJsonService.parseValue(node.asText()); }
+            catch (DietException ignored) { return node; }
+        }
+        return node;
+    }
+
+    /** 按字段容错读取，避免“20元”“适量”或未知枚举让整个批次 JSON 绑定失败。 */
+    private MealRequest parseMealNode(JsonNode node) {
+        if (node == null || !node.isObject()) throw new DietException("AI 返回的餐食结构不是 JSON 对象");
+        List<MealIngredient> ingredients = new ArrayList<>();
+        if (node.path("ingredients").isArray()) {
+            for (JsonNode item : node.path("ingredients")) {
+                if (item.isTextual()) ingredients.add(new MealIngredient(item.asText(), "其他", null, null));
+                else if (item.isObject()) ingredients.add(new MealIngredient(text(item, "name"), text(item, "category"),
+                        decimal(item.path("quantity")), text(item, "unit")));
+            }
+        }
+        JsonNode nutritionNode = node.path("nutrition");
+        NutritionSummary nutrition = nutritionNode.isObject() ? new NutritionSummary(integer(nutritionNode.path("calories")),
+                decimal(nutritionNode.path("protein")), decimal(nutritionNode.path("fat")),
+                decimal(nutritionNode.path("carbs"))) : null;
+        return new MealRequest(text(node, "name"), text(node, "imageUrl"), strings(node.path("mealTime")),
+                strings(node.path("mood")), strings(node.path("scene")), strings(node.path("healthGoal")),
+                strings(node.path("cuisine")), strings(node.path("taste")), strings(node.path("convenience")),
+                acquisitionMode(node.path("acquisitionMode")), integer(node.path("prepMinutes")),
+                text(node, "difficulty"), decimal(node.path("priceMin")), decimal(node.path("priceMax")),
+                integer(node.path("defaultServings")), ingredients, strings(node.path("steps")),
+                text(node, "dineOutTips"), strings(node.path("substitutes")), nutrition);
+    }
+
+    private List<String> strings(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return List.of();
+        if (node.isTextual()) return node.asText().isBlank() ? List.of() : List.of(node.asText().trim());
+        if (!node.isArray()) return List.of();
+        List<String> values = new ArrayList<>();
+        for (JsonNode item : node) if (item.isValueNode() && !item.asText().isBlank()) values.add(item.asText().trim());
+        return values;
+    }
+
+    private String text(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        return value.isMissingNode() || value.isNull() ? null : value.asText(null);
+    }
+
+    private BigDecimal decimal(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return null;
+        if (node.isNumber()) return node.decimalValue();
+        Matcher matcher = NUMBER.matcher(node.asText(""));
+        try { return matcher.find() ? new BigDecimal(matcher.group()) : null; }
+        catch (NumberFormatException ignored) { return null; }
+    }
+
+    private Integer integer(JsonNode node) {
+        BigDecimal value = decimal(node);
+        return value == null ? null : value.intValue();
+    }
+
+    private AcquisitionMode acquisitionMode(JsonNode node) {
+        String value = node == null ? "" : node.asText("").trim().toUpperCase(Locale.ROOT);
+        if (value.contains("COOK") || value.contains("做饭") || value.contains("烹饪")) return AcquisitionMode.COOK;
+        if (value.contains("EAT_OUT") || value.contains("外食") || value.contains("外卖")) return AcquisitionMode.EAT_OUT;
+        if (value.contains("BOTH") || value.contains("均可") || value.contains("都可")) return AcquisitionMode.BOTH;
+        return null;
     }
 
     private MealRequest merge(MealRequest current, MealRequest generated) {

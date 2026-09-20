@@ -4,6 +4,7 @@ import com.diet.mapper.AgentTraceMapper;
 import com.diet.exception.DietException;
 import com.diet.model.TraceLabelRequest;
 import com.diet.model.RequestTraceRow;
+import com.diet.enums.RecommendationMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.message.Msg;
@@ -17,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.time.Duration;
 
 /**
  * Agent 链路追踪服务。
@@ -58,11 +60,23 @@ public class AgentTraceService {
      */
     public TraceScope openTrace(String traceId, String sessionId, Long userId) {
         // 创建 TraceScope 实例，持有 traceId/sessionId/userId 和事件列表
-        TraceScope scope = new TraceScope(traceId, sessionId, userId);
+        TraceScope scope = new TraceScope(traceId, sessionId, userId, RecommendationMode.STANDARD);
         // 将 scope 绑定到当前线程，record 方法通过 currentScope.get() 读取
         currentScope.set(scope);
         // 返回 scope 供 try-with-resources 在 finally 中 close
         return scope;
+    }
+
+    public TraceScope openTrace(String traceId, String sessionId, Long userId, RecommendationMode requestedMode) {
+        TraceScope scope = new TraceScope(traceId, sessionId, userId,
+                requestedMode == null ? RecommendationMode.STANDARD : requestedMode);
+        currentScope.set(scope);
+        return scope;
+    }
+
+    public void markExecution(RecommendationMode actualMode, String fallbackCode, int toolCallCount) {
+        TraceScope scope = currentScope.get();
+        if (scope != null) scope.markExecution(actualMode, fallbackCode, toolCallCount);
     }
 
     /**
@@ -97,14 +111,20 @@ public class AgentTraceService {
      * 执行 ReActAgent.call，成功/失败均记录 AGENT_CALL 事件（含 modelName、latency）。
      */
     public Msg callAgent(String sessionId, String agentName, String modelName, ReActAgent agent, String inputText) {
+        return callAgent(sessionId, agentName, modelName, agent, inputText, null);
+    }
+
+    public Msg callAgent(String sessionId, String agentName, String modelName, ReActAgent agent,
+                         String inputText, Duration timeout) {
         // 记录 Agent 调用开始时间（纳秒）
         long startedAt = System.nanoTime();
         try {
             // 构造 USER 角色消息并同步调用 Agent（block 等待 LLM 返回）
-            Msg response = agent.call(Msg.builder()
+            var call = agent.call(Msg.builder()
                     .role(MsgRole.USER)
                     .textContent(inputText)
-                    .build()).block();
+                    .build());
+            Msg response = timeout == null ? call.block() : call.block(timeout);
             // 成功：记录 AGENT_CALL 事件，input=inputText，output=response 文本，latency=耗时 ms
             recordAgentCall(sessionId, agentName, modelName, inputText, response, elapsedMs(startedAt), null);
             // 将 Agent 原始响应返回给调用方（IntentAgent/ClarifyAgent/RecommendResponseAgent）
@@ -241,6 +261,10 @@ public class AgentTraceService {
         trace.put("events", scope.events());       // 全部 TraceEvent 列表
         // 将 trace Map 序列化为 JSON 字符串写入 trace_json 列
         row.setTraceJson(toTraceJson(trace));
+        row.setRequestedMode(scope.requestedMode().name());
+        row.setActualMode(scope.actualMode().name());
+        row.setFallbackCode(scope.fallbackCode());
+        row.setToolCallCount(scope.toolCallCount());
         // 执行 INSERT
         agentTraceMapper.insert(row);
     }
@@ -340,6 +364,10 @@ public class AgentTraceService {
 
         /** 本轮 userId。 */
         private final Long userId;
+        private final RecommendationMode requestedMode;
+        private RecommendationMode actualMode;
+        private String fallbackCode;
+        private int toolCallCount;
 
         /** 事件序号计数器，线程安全自增。 */
         private final AtomicInteger stepOrder = new AtomicInteger(0);
@@ -360,14 +388,26 @@ public class AgentTraceService {
         private boolean closed;
 
         /** 私有构造，仅 AgentTraceService#openTrace 创建。 */
-        private TraceScope(String traceId, String sessionId, Long userId) {
+        private TraceScope(String traceId, String sessionId, Long userId, RecommendationMode requestedMode) {
             this.traceId = traceId;
             this.sessionId = sessionId;
             this.userId = userId;
+            this.requestedMode = requestedMode;
+            this.actualMode = requestedMode;
         }
         private String traceId() { return traceId; }
         private String sessionId() { return sessionId; }
         private Long userId() { return userId; }
+        private RecommendationMode requestedMode() { return requestedMode; }
+        private RecommendationMode actualMode() { return actualMode; }
+        private String fallbackCode() { return fallbackCode; }
+        private int toolCallCount() { return toolCallCount; }
+
+        private void markExecution(RecommendationMode actualMode, String fallbackCode, int toolCallCount) {
+            this.actualMode = actualMode == null ? requestedMode : actualMode;
+            this.fallbackCode = fallbackCode;
+            this.toolCallCount = Math.max(0, toolCallCount);
+        }
 
         /** 返回下一个事件序号（先自增再返回）。 */
         private int nextStep() { return stepOrder.incrementAndGet(); }

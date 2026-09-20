@@ -97,6 +97,34 @@ class MealAiServiceTest {
         verify(meals, times(1)).createPersonalMeal(eq(7L), any());
     }
 
+    @Test
+    void expansionAcceptsDirectArrayCodeFenceAndHumanReadableNumbers() {
+        when(memories.preferences(7L)).thenReturn(new UserPreferenceProfile(List.of(), List.of(), List.of(), List.of()));
+        when(meals.findPersonalMeals(7L)).thenReturn(List.of());
+        when(meals.createPersonalMeal(eq(7L), any())).thenAnswer(invocation -> {
+            MealRequest request = invocation.getArgument(1);
+            return new MealItem(3L, SourceMode.PERSONAL, 7L, request.name(), null,
+                    request.toSlots(), request.toDetail(), 0);
+        });
+        service.response = """
+                ```json
+                [
+                  {'name':'牛肉饭','mealTime':'午餐','acquisitionMode':'做饭',
+                   'prepMinutes':'约30分钟','priceMin':'20元','ingredients':[{'name':'牛肉','quantity':'适量'}],},
+                ]
+                ```
+                """;
+
+        List<MealItem> created = service.expandPersonal(7L, new MealAiExpandRequest(null, 1));
+
+        assertThat(created).hasSize(1);
+        assertThat(created.get(0).name()).isEqualTo("牛肉饭");
+        assertThat(created.get(0).detail().acquisitionMode()).isEqualTo(AcquisitionMode.COOK);
+        assertThat(created.get(0).detail().prepMinutes()).isEqualTo(30);
+        assertThat(created.get(0).detail().priceMin()).isEqualByComparingTo("20");
+        assertThat(created.get(0).detail().ingredients().get(0).quantity()).isNull();
+    }
+
     private static final class TestMealAiService extends MealAiService {
         private String response;
         private String lastPrompt;

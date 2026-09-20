@@ -1,4 +1,20 @@
 export type SourceMode = 'PERSONAL' | 'PUBLIC'
+export type RecommendationMode = 'STANDARD' | 'AGENT'
+
+export interface AgentActivity {
+  name: string
+  status: 'COMPLETED' | 'STAGED' | 'NOT_COMMITTED' | string
+  detail?: string
+}
+
+export interface ChatExecution {
+  requestedMode: RecommendationMode
+  actualMode: RecommendationMode
+  fallbackOccurred: boolean
+  fallbackCode?: string
+  activities: AgentActivity[]
+  mutationsCommitted: boolean
+}
 
 export interface AuthUser {
   id: number
@@ -126,6 +142,25 @@ export interface RecommendationHistory {
   createdAt: string
 }
 
+export interface SessionSummary {
+  id: string
+  phase: string
+  sourceMode: SourceMode
+  preview: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SessionMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  intent?: string
+  traceId?: string
+  createdAt: string
+}
+
 export interface UserMemory {
   id: number
   type: 'SLOT_PREFERENCE' | 'MEAL_PREFERENCE'
@@ -172,12 +207,14 @@ export interface ChatResponse {
   nextAction?: string
   clarifyQuestion?: string
   missingSlots: string[]
+  execution?: ChatExecution
 }
 
 export interface ChatStreamEvent {
-  type: 'status' | 'delta' | 'complete' | 'error'
+  type: 'status' | 'activity' | 'delta' | 'complete' | 'error'
   text?: string
   response?: ChatResponse
+  activity?: AgentActivity
 }
 
 export interface Trace {
@@ -189,6 +226,10 @@ export interface Trace {
   durationMs?: number
   errorMessage?: string
   traceJson: string
+  requestedMode?: RecommendationMode
+  actualMode?: RecommendationMode
+  fallbackCode?: string
+  toolCallCount?: number
   expectedIntent?: string
   expectedSlots?: string
   expectedClarifyAction?: string

@@ -1,14 +1,13 @@
-import { FormEvent, useEffect, useRef, useState } from 'react'
-import { ArrowUp, Brain, CalendarCheck, Check, Clock3, RotateCcw } from 'lucide-react'
+import { FormEvent, useEffect, useState } from 'react'
+import { ArrowUp, Brain, CalendarCheck, Check, Clock3, MessagesSquare, RotateCcw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { MealCard } from '../components/MealCard'
 import { Notice } from '../components/Notice'
-import type { Meal, RecommendationHistory, SourceMode, UserMemory } from '../types'
+import type { Meal, RecommendationHistory, SessionSummary, UserMemory } from '../types'
 import type { PlanItem } from '../types'
 import { AddToPlanDialog } from '../components/AddToPlanDialog'
-
-type Message = { id: string; role: 'user' | 'assistant'; text: string; meals?: Meal[]; traceId?: string; status?: string; streaming?: boolean }
+import { useChatSession } from '../lib/ChatSessionContext'
 
 const suggestions = ['午饭想吃辣一点，最好快一些', '运动后想吃高蛋白的晚餐', '今天没胃口，来点清淡暖胃的']
 const previewMeals: Meal[] = [
@@ -18,36 +17,48 @@ const previewMeals: Meal[] = [
 ]
 
 export function ChatPage() {
-  const [mode, setMode] = useState<SourceMode>('PUBLIC')
+  const { mode, setMode, smartMode, toggleSmartMode, sessionId, messages, loading, send: sendChat,
+    clear: clearConversation, restore: restoreConversation, notice: chatNotice, clearNotice,
+    dataRevision, mutationRevision, conversationRevision } = useChatSession()
   const [input, setInput] = useState('')
-  const [sessionId, setSessionId] = useState<string>()
-  const [messages, setMessages] = useState<Message[]>([])
   const [publicMeals, setPublicMeals] = useState<Meal[]>([])
   const [history, setHistory] = useState<RecommendationHistory[]>([])
   const [memories, setMemories] = useState<UserMemory[]>([])
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
   const [todayPlans, setTodayPlans] = useState<PlanItem[]>([])
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [planMeal, setPlanMeal] = useState<Meal>()
-  const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState({ message: '', tone: 'success' as 'success' | 'error' })
-  const streamController = useRef<AbortController | undefined>(undefined)
 
   useEffect(() => {
     let active = true
-    Promise.all([api.meals('public'), api.recommendationHistory(), api.memories(), api.favorites(), api.plans?.(currentWeek()) ?? Promise.resolve([])])
-      .then(([meals, records, remembered, favorites, plans]) => {
+    Promise.all([api.meals('public'), api.recommendationHistory(), api.memories(), api.favorites(), api.plans(currentWeek()), api.sessions()])
+      .then(([meals, records, remembered, favorites, plans, sessionRecords]) => {
         if (!active) return
         setPublicMeals(meals)
         setHistory(records)
         setMemories(remembered)
         setFavoriteIds(new Set(favorites.map((item) => item.meal.id)))
         setTodayPlans(plans.filter((item) => item.planDate === today()))
+        setSessions(sessionRecords)
       })
       .catch((error) => {
         if (active) setNotice({ message: error instanceof Error ? error.message : '加载今日推荐失败', tone: 'error' })
       })
-    return () => { active = false; streamController.current?.abort() }
+    return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    if (!chatNotice.message) return
+    setNotice(chatNotice)
+    clearNotice()
+  }, [chatNotice.message])
+
+  useEffect(() => { if (dataRevision > 0) void refreshPersonalContext() }, [dataRevision])
+  useEffect(() => { if (mutationRevision > 0) void refreshTodayPlans() }, [mutationRevision])
+  useEffect(() => {
+    if (conversationRevision > 0) void api.sessions().then(setSessions).catch(() => undefined)
+  }, [conversationRevision])
 
   async function refreshPersonalContext() {
     try {
@@ -59,53 +70,29 @@ export function ChatPage() {
     }
   }
 
-  async function send(message = input) {
+  async function refreshTodayPlans() {
+    try {
+      const plans = await api.plans(currentWeek())
+      setTodayPlans(plans.filter((item) => item.planDate === today()))
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : '计划已修改，但今日计划刷新失败', tone: 'error' })
+    }
+  }
+
+  function send(message = input) {
     const text = message.trim()
     if (!text || loading) return
     setInput('')
-    const requestId = crypto.randomUUID()
-    const assistantId = `${requestId}-assistant`
-    setMessages((items) => [...items,
-      { id: requestId, role: 'user', text },
-      { id: assistantId, role: 'assistant', text: '', status: '正在连接推荐服务…', streaming: true },
-    ])
-    setLoading(true)
-    streamController.current?.abort()
-    const controller = new AbortController()
-    streamController.current = controller
-    let receivedComplete = false
+    sendChat(text)
+  }
+
+  async function openSession(item: SessionSummary) {
+    if (loading) return
     try {
-      await api.chatStream({ sessionId, message: text, sourceMode: mode }, (event) => {
-        if (event.type === 'status') {
-          setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, status: event.text } : item))
-        } else if (event.type === 'delta' && event.text) {
-          setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, text: item.text + event.text, status: undefined } : item))
-        } else if (event.type === 'complete' && event.response) {
-          receivedComplete = true
-          const response = event.response
-          setSessionId(response.sessionId)
-          setMessages((items) => items.map((item) => item.id === assistantId ? {
-            ...item,
-            text: response.clarifyQuestion || response.speechText,
-            meals: response.displayBlocks,
-            traceId: response.traceId,
-            status: undefined,
-            streaming: false,
-          } : item))
-          if (response.displayBlocks.length > 0) void refreshPersonalContext()
-        } else if (event.type === 'error') {
-          throw new Error(event.text || '生成推荐失败')
-        }
-      }, controller.signal)
-      if (!receivedComplete) throw new Error('流式连接提前结束，请重试')
+      const records = await api.sessionMessages(item.id)
+      restoreConversation(item.id, item.sourceMode, records)
     } catch (error) {
-      if (!controller.signal.aborted) {
-        const message = error instanceof Error ? error.message : '发送失败，请稍后再试'
-        setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, text: `抱歉，${message}`, status: undefined, streaming: false } : item))
-        setNotice({ message, tone: 'error' })
-      }
-    } finally {
-      if (streamController.current === controller) setLoading(false)
+      setNotice({ message: error instanceof Error ? error.message : '聊天记录加载失败', tone: 'error' })
     }
   }
 
@@ -155,14 +142,19 @@ export function ChatPage() {
       <section className="chat-main">
         <header className="page-header chat-header">
           <div><p className="eyebrow">今天 · 一餐一味</p><h1>今天想吃点什么？</h1><p>说说你的时间、口味，或者此刻更在意什么。</p></div>
-          {messages.length > 0 && <button className="quiet-button" onClick={() => { streamController.current?.abort(); setLoading(false); setMessages([]); setSessionId(undefined) }}><RotateCcw size={16} />新对话</button>}
+          {messages.length > 0 && <button className="quiet-button" onClick={clearConversation}><RotateCcw size={16} />新对话</button>}
         </header>
 
         <section className="today-plan-strip"><div className="today-plan-heading"><CalendarCheck size={18} /><span><strong>今日计划</strong><small>{todayPlans.length ? `${todayPlans.filter((item) => item.status === 'COMPLETED').length}/${todayPlans.length} 已完成` : '今天还没安排'}</small></span><Link to="/plan">查看整周</Link></div><div className="today-plan-items">{todayPlans.length ? todayPlans.slice(0, 4).map((item) => <article key={item.id} className={`today-plan-card ${item.status.toLowerCase()}`}><div><b>{periodLabel(item.mealPeriod)}</b><Link to={`/meals/${item.mealId}`}>{item.meal.name}</Link><small>{item.acquisitionMode === 'COOK' ? `做饭${item.meal.prepMinutes ? ` · ${item.meal.prepMinutes} 分钟` : ''}` : `外食${item.meal.priceMin != null ? ` · ¥${item.meal.priceMin} 起` : ''}`}</small></div>{(item.status === 'PLANNED' || item.status === 'REPLACED') && <div className="today-plan-actions"><button onClick={() => void executeToday(item, 'COMPLETE')}>已吃</button><button onClick={() => void executeToday(item, 'SKIP')}>跳过</button><button onClick={() => void executeToday(item, 'REPLACE')}>换一道</button></div>}</article>) : <p>从推荐卡片加入今天，或让 AI 安排一周。</p>}</div></section>
 
-        <div className="source-switch" aria-label="餐食来源">
-          <button className={mode === 'PERSONAL' ? 'active' : ''} onClick={() => setMode('PERSONAL')}>我的餐食{mode === 'PERSONAL' && <Check size={14} />}</button>
-          <button className={mode === 'PUBLIC' ? 'active' : ''} onClick={() => setMode('PUBLIC')}>公共餐食{mode === 'PUBLIC' && <Check size={14} />}</button>
+        <div className="recommendation-controls">
+          <div className="source-switch" aria-label="餐食来源">
+            <button disabled={loading} className={mode === 'PERSONAL' ? 'active' : ''} onClick={() => setMode('PERSONAL')}>我的餐食{mode === 'PERSONAL' && <Check size={14} />}</button>
+            <button disabled={loading} className={mode === 'PUBLIC' ? 'active' : ''} onClick={() => setMode('PUBLIC')}>公共餐食{mode === 'PUBLIC' && <Check size={14} />}</button>
+          </div>
+          <button type="button" role="switch" aria-checked={smartMode} className={`smart-mode-toggle ${smartMode ? 'active' : ''}`} disabled={loading} onClick={toggleSmartMode}>
+            <span className="switch-track"><i /></span><Brain size={15} />智能推荐<small>{smartMode ? 'Agent' : '关闭'}</small>
+          </button>
         </div>
 
         <div className="conversation" aria-live="polite">
@@ -173,9 +165,13 @@ export function ChatPage() {
               {suggestions.map((item) => <button key={item} onClick={() => send(item)}>{item}</button>)}
             </div>
           </div> : messages.map((message) => <div className={`message ${message.role}`} key={message.id}>
-            <span className="message-author">{message.role === 'user' ? '你' : '食刻'}</span>
+            <span className="message-author">{message.role === 'user' ? '你' : '食刻'}{message.role === 'assistant' && message.recommendationMode === 'AGENT' && <em className="agent-badge">智能 Agent</em>}</span>
             <div className={`message-content ${message.streaming && !message.text ? 'typing' : ''}`}>
-              {message.status ? <p className="stream-status"><i /><i /><i />{message.status}</p> : <p>{message.text}</p>}
+              {message.status ? <p className="stream-status"><i /><i /><i />{message.status}</p> : <p className={message.streaming ? 'streaming-copy' : undefined}>{message.text}</p>}
+              {!!message.activities?.length && <details className="agent-activities" open={message.streaming}>
+                <summary>{message.execution?.fallbackOccurred ? '智能处理过程（已降级）' : '智能处理过程'} · {message.activities.length} 项</summary>
+                <ul>{message.activities.map((activity, index) => <li key={`${activity.name}-${index}`} className={activity.status.toLowerCase()}><Check size={13} /><span><b>{activity.name}</b>{activity.detail && <small>{activity.detail}</small>}</span></li>)}</ul>
+              </details>}
               {message.meals?.map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={() => toggleFavorite(meal)} onFeedback={(action) => rememberFeedback(meal, action)} onPlan={() => setPlanMeal(meal)} />)}
             </div>
           </div>)}
@@ -192,6 +188,13 @@ export function ChatPage() {
 
       <aside className="recommendation-rail">
         <div className="rail-heading"><span>今日推荐</span><small>{history.length} 次记录</small></div>
+        <section className="chat-history-section" aria-labelledby="chat-history-title">
+          <div className="rail-section-title" id="chat-history-title"><span><MessagesSquare size={14} />聊天记录</span><small>{sessions.length} 个会话</small></div>
+          {sessions.length === 0 ? <p className="rail-note">完成一次对话后，会话会保存在这里。</p> :
+            <div className="session-history-list">{sessions.slice(0, 12).map((item) => <button key={item.id} disabled={loading} className={item.id === sessionId ? 'active' : ''} onClick={() => void openSession(item)}>
+              <span>{item.preview || '新会话'}</span><small>{formatSessionTime(item.updatedAt)} · {item.messageCount} 条</small>
+            </button>)}</div>}
+        </section>
         <div className="rail-section-title"><span>本轮推荐</span><small>{recommendations.length || fallbackMeals.length} 道</small></div>
         {(recommendations.length ? recommendations : fallbackMeals).map((meal) => <MealCard key={meal.id} meal={meal} compact favorited={favoriteIds.has(meal.id)} onFavorite={meal.id > 0 ? () => toggleFavorite(meal) : undefined} onPlan={meal.id > 0 ? () => setPlanMeal(meal) : undefined} />)}
         {!recommendations.length && <p className="rail-note">先给你三道参考。开始聊聊，推荐会跟着你的描述变化。</p>}
@@ -235,4 +238,9 @@ function memoryLabel(key: string) {
 function formatTime(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
+}
+
+function formatSessionTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
 }

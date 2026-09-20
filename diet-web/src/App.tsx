@@ -12,9 +12,10 @@ import { PlanPage } from './pages/PlanPage'
 import { ShoppingPage } from './pages/ShoppingPage'
 import { MealDetailPage } from './pages/MealDetailPage'
 import { AuthProvider, useAuth } from './lib/AuthContext'
+import { ChatSessionProvider } from './lib/ChatSessionContext'
 
 export default function App() {
-  return <AuthProvider><AppRoutes /></AuthProvider>
+  return <AuthProvider><ChatSessionProvider><AppRoutes /></ChatSessionProvider></AuthProvider>
 }
 
 function AppRoutes() {

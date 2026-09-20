@@ -6,11 +6,13 @@
 - `diet-web/`：React + TypeScript + Vite 前端
 - `docs/design/`：前端视觉概念与生成素材说明
 
+完整的系统分层、推荐链路、业务闭环和代码导航见 [项目架构与核心链路](docs/PROJECT_ARCHITECTURE.md)。
+
 ## 本地运行
 
 环境要求：Java 21、Maven 3.9+、Node.js 20+、MySQL 8。
 
-1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql`、`20260916_stream_favorites_preferences_images.sql`、`20260917_user_auth.sql`、`20260918_seeded_meal_taste_option.sql` 和 `20260920_daily_assistant.sql`（每个迁移只执行一次）。最后一个迁移会增加餐食详情、周计划、打卡和购物清单表。
+1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql`、`20260916_stream_favorites_preferences_images.sql`、`20260917_user_auth.sql`、`20260918_seeded_meal_taste_option.sql`、`20260920_daily_assistant.sql` 和 `20260921_agentic_recommendation.sql`（每个迁移只执行一次）。最后两个迁移分别增加日常饮食闭环表和智能推荐链路的 Trace 字段。
 2. 配置本地数据库。建议新建不提交的 `diet-agent/src/main/resources/application-dev.yml`：
 
 ```yaml
@@ -74,12 +76,18 @@ npm run dev
 
 营养和价格均为可选估算字段，不用于医疗诊断。
 
+## 双链路智能推荐
+
+推荐页默认使用原有稳定编排；开启“智能推荐”后改用 ReAct Agent。Agent 可在当前选择的个人库或公共库内查询真实餐食，并按需读取长期偏好、近期推荐、本周计划和购物清单。只有用户明确提出“加入计划”“替换计划”或“同步购物清单”时才允许暂存写操作；Agent 完整成功且输出校验通过后才会在同一事务中提交。
+
+智能链路默认 20 秒超时、最多 6 轮推理和 8 次工具调用。模型、工具、超时、非法餐食 ID 或结构化输出异常时会自动回退稳定链路，不保留任何未提交写操作。连续 3 次基础设施失败会熔断 60 秒，模型配置更新或成功调用会恢复。模型设置中的连接测试会分别报告文本调用和工具调用能力。
+
 ## API
 
 所有业务接口位于 `/api/v1/diet`：
 
 - `POST /chat`：餐食推荐对话
-- `POST /chat/stream`：SSE 流式对话（`status`、`delta`、`complete`、`error` 事件）
+- `POST /chat/stream`：SSE 流式对话（`status`、`activity`、`delta`、`complete`、`error` 事件）
 - `/meals/personal`、`/meals/public`：餐食库
 - `POST /meals/ai/complete`：根据餐食名称和已填资料补全空白详情
 - `POST /meals/personal/ai-expand`：结合长期偏好和本次自由要求生成个人餐食

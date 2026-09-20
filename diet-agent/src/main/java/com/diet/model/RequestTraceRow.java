@@ -15,6 +15,10 @@ public class RequestTraceRow {
     private Long durationMs;
     private String errorMessage;
     private String traceJson;
+    private String requestedMode;
+    private String actualMode;
+    private String fallbackCode;
+    private Integer toolCallCount;
     private String expectedIntent;
     private String expectedSlots;
     private String expectedClarifyAction;

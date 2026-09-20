@@ -3,6 +3,7 @@ package com.diet.model;
 import java.util.Map;
 
 import com.diet.enums.SourceMode;
+import com.diet.enums.RecommendationMode;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 
 import lombok.AllArgsConstructor;
@@ -19,5 +20,6 @@ public class ChatRequest {
     private String sessionId;
     private String message;
     private SourceMode sourceMode;
+    private RecommendationMode recommendationMode;
     private Map<String, Object> context;
 }

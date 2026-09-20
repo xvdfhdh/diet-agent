@@ -10,6 +10,7 @@ const mocked = vi.hoisted(() => ({
   meals: vi.fn(), slotOptions: vi.fn(), bulkPublicMeals: vi.fn(),
   completeMeal: vi.fn(), expandPersonalMeals: vi.fn(), createMeal: vi.fn(),
   recommendationHistory: vi.fn(), memories: vi.fn(), favorites: vi.fn(),
+  plans: vi.fn(), sessions: vi.fn(),
 }))
 
 vi.mock('../lib/api', () => ({ api: mocked }))
@@ -36,6 +37,8 @@ beforeEach(() => {
   mocked.recommendationHistory.mockResolvedValue([])
   mocked.memories.mockResolvedValue([])
   mocked.favorites.mockResolvedValue([])
+  mocked.plans.mockResolvedValue([])
+  mocked.sessions.mockResolvedValue([])
 })
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })

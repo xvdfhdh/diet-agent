@@ -4,7 +4,7 @@ import com.diet.constants.DietConstants;
 import com.diet.model.ChatRequest;
 import com.diet.model.ChatResponse;
 import com.diet.model.ChatStreamEvent;
-import com.diet.service.orchestrator.DietOrchestratorService;
+import com.diet.service.orchestrator.DietChatRoutingService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,18 +18,17 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * 饮食推荐对话 HTTP 入口。
- * 本层只做参数透传，完整状态机由 {@link DietOrchestratorService#dietChat} 驱动。
+ * 本层只做参数透传，统一路由层决定稳定链路或 Agent 链路。
  */
 @RestController
 @RequestMapping("/api/v1/diet")
 public class DietChatController {
 
-    /** 多 Agent 编排服务，注入后用于处理每轮对话。 */
-    private final DietOrchestratorService orchestratorService;
+    private final DietChatRoutingService routingService;
 
     /** Spring 构造器注入 Orchestrator。 */
-    public DietChatController(DietOrchestratorService orchestratorService) {
-        this.orchestratorService = orchestratorService;
+    public DietChatController(DietChatRoutingService routingService) {
+        this.routingService = routingService;
     }
 
     /**
@@ -43,7 +42,7 @@ public class DietChatController {
             @RequestBody ChatRequest request
     ) {
         // 委托 Orchestrator 执行完整状态机，直接返回 ChatResponse
-        return orchestratorService.dietChat(userId, request);
+        return routingService.dietChat(userId, request);
     }
 
     /** SSE 对话接口：先推送流水线状态，再逐段推送最终文本，最后发送完整响应。 */
@@ -54,8 +53,10 @@ public class DietChatController {
         SseEmitter emitter = new SseEmitter(120_000L);
         CompletableFuture.runAsync(() -> {
             try {
-                ChatResponse response = orchestratorService.dietChat(
-                        userId, request, status -> send(emitter, ChatStreamEvent.status(status)));
+                ChatResponse response = routingService.dietChat(
+                        userId, request,
+                        status -> send(emitter, ChatStreamEvent.status(status)),
+                        activity -> send(emitter, ChatStreamEvent.activity(activity)));
                 streamText(emitter, response.speechText());
                 send(emitter, ChatStreamEvent.complete(response));
                 emitter.complete();
