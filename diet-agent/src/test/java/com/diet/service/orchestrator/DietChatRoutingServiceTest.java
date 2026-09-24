@@ -9,6 +9,11 @@ import com.diet.service.agentic.AgentCircuitBreaker;
 import com.diet.service.agentic.AgentMutationPolicy;
 import com.diet.service.agentic.AgentRunException;
 import com.diet.service.agentic.AgenticRecommendationService;
+import com.diet.service.agentic.PendingAgentActionService;
+import com.diet.service.session.SessionService;
+import com.diet.service.trace.AgentTraceService;
+import com.diet.mapper.AgentTraceMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +36,9 @@ class DietChatRoutingServiceTest {
         standard = mock(DietOrchestratorService.class);
         agentic = mock(AgenticRecommendationService.class);
         breaker = new AgentCircuitBreaker();
-        routing = new DietChatRoutingService(standard, agentic, breaker, new AgentMutationPolicy());
+        routing = new DietChatRoutingService(standard, agentic, breaker, new AgentMutationPolicy(),
+                mock(PendingAgentActionService.class), mock(SessionService.class),
+                new AgentTraceService(mock(AgentTraceMapper.class), new ObjectMapper()));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.diet.service.history;
 
 import com.diet.enums.SourceMode;
+import com.diet.enums.SourceStrategy;
 import com.diet.exception.DietException;
 import com.diet.mapper.RecommendationHistoryMapper;
 import com.diet.model.MealResponse;
@@ -39,6 +40,15 @@ public class RecommendationHistoryService {
             String speechText,
             List<MealResponse> meals
     ) {
+        record(userId, sessionId, traceId, sourceMode, SourceStrategy.SELECTED_ONLY,
+                userInput, slots, speechText, meals);
+    }
+
+    public void record(
+            Long userId, String sessionId, String traceId, SourceMode sourceMode,
+            SourceStrategy sourceStrategy, String userInput, SlotBundle slots,
+            String speechText, List<MealResponse> meals
+    ) {
         if (meals == null || meals.isEmpty()) {
             return;
         }
@@ -47,6 +57,7 @@ public class RecommendationHistoryService {
         row.setSessionId(sessionId);
         row.setTraceId(traceId);
         row.setSourceMode(sourceMode.name());
+        row.setSourceStrategy((sourceStrategy == null ? SourceStrategy.SELECTED_ONLY : sourceStrategy).name());
         row.setUserInput(userInput);
         row.setSlotsJson(writeJson(slots == null ? SlotBundle.empty() : slots));
         row.setSpeechText(speechText);
@@ -104,6 +115,7 @@ public class RecommendationHistoryService {
                     row.getSessionId(),
                     row.getTraceId(),
                     SourceMode.valueOf(row.getSourceMode()),
+                    parseStrategy(row.getSourceStrategy()),
                     row.getUserInput(),
                     objectMapper.readValue(row.getSlotsJson(), SlotBundle.class),
                     row.getSpeechText(),
@@ -113,6 +125,11 @@ public class RecommendationHistoryService {
         } catch (Exception error) {
             throw new DietException("推荐历史解析失败", error);
         }
+    }
+
+    private SourceStrategy parseStrategy(String value) {
+        try { return value == null || value.isBlank() ? SourceStrategy.SELECTED_ONLY : SourceStrategy.valueOf(value); }
+        catch (Exception ignored) { return SourceStrategy.SELECTED_ONLY; }
     }
 
     private String writeJson(Object value) {

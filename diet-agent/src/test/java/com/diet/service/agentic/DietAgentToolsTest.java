@@ -1,8 +1,15 @@
 package com.diet.service.agentic;
 
 import com.diet.enums.SourceMode;
+import com.diet.enums.AcquisitionMode;
+import com.diet.enums.MealPeriod;
+import com.diet.enums.PlanStatus;
+import com.diet.enums.SourceStrategy;
+import com.diet.enums.AgentTaskType;
 import com.diet.exception.DietException;
 import com.diet.model.MealItem;
+import com.diet.model.MealResponse;
+import com.diet.model.PlanItemResponse;
 import com.diet.model.SlotBundle;
 import com.diet.service.history.RecommendationHistoryService;
 import com.diet.service.meal.MealService;
@@ -72,6 +79,54 @@ class DietAgentToolsTest {
         assertThat(context.wasRetrieved(1L)).isTrue();
         assertThat(context.wasRetrieved(2L)).isFalse();
         verify(meals).findAccessibleMeals(19L);
+    }
+
+    @Test
+    void previousPlanMealCanBeVerifiedAndReusedForToday() {
+        MealService meals = mock(MealService.class);
+        MealPlanService plans = mock(MealPlanService.class);
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        MealItem publicMeal = new MealItem(7L, SourceMode.PUBLIC, null, "历史早餐", null, SlotBundle.empty(), 0);
+        MealResponse snapshot = MealResponse.from(publicMeal);
+        when(meals.findAccessibleMeal(19L, 7L)).thenReturn(publicMeal);
+        when(plans.findWeek(19L, yesterday)).thenReturn(List.of(
+                new PlanItemResponse(31L, yesterday, MealPeriod.BREAKFAST, 7L, snapshot,
+                        AcquisitionMode.COOK, 1, PlanStatus.PLANNED, null)));
+        AgentRunContext context = new AgentRunContext(19L, SourceMode.PUBLIC,
+                "帮我按照之前的每日饮食计划，填写今日计划", ignored -> {});
+        DietAgentTools tools = tools(context, meals, plans);
+
+        String planJson = tools.getWeekPlan(yesterday.toString());
+        tools.addOrReplacePlanItem(LocalDate.now().toString(), "BREAKFAST", 7L, "COOK", 1);
+
+        assertThat(planJson).contains("reusableMealIds").contains("历史早餐");
+        assertThat(context.wasRetrieved(7L)).isTrue();
+        assertThat(context.stagedMutations()).containsExactly(
+                new AgentMutation.AddPlanItem(LocalDate.now(), MealPeriod.BREAKFAST,
+                        7L, AcquisitionMode.COOK, 1));
+    }
+
+    @Test
+    void unifiedSearchIncludesBothSourcesAndPrefersPersonalOnEqualScore() {
+        MealService meals = mock(MealService.class);
+        UserMemoryService memories = mock(UserMemoryService.class);
+        when(memories.dislikedMealIds(19L)).thenReturn(List.of());
+        when(memories.preferences(19L)).thenReturn(new com.diet.model.UserPreferenceProfile(List.of(), List.of(), List.of(), List.of()));
+        RecommendationHistoryService history = mock(RecommendationHistoryService.class);
+        when(history.recent(19L, 10)).thenReturn(List.of());
+        when(meals.findAccessibleMeals(19L)).thenReturn(List.of(
+                new MealItem(1L, SourceMode.PUBLIC, null, "公共餐", null, SlotBundle.empty(), 0),
+                new MealItem(2L, SourceMode.PERSONAL, 19L, "个人餐", null, SlotBundle.empty(), 0)));
+        AgentRunContext context = new AgentRunContext(19L, SourceMode.PUBLIC, SourceStrategy.UNIFIED,
+                AgentTaskType.RECOMMEND, "推荐午餐", ignored -> {});
+        DietAgentTools tools = new DietAgentTools(context, meals, memories,
+                history, mock(MealPlanService.class),
+                mock(ShoppingListService.class), null, new AgentMutationPolicy(), new JsonService(jsonMapper()));
+
+        String result = tools.findMealOptions(null, null, null, null, null, null, null, null, 10);
+
+        assertThat(result).contains("公共餐").contains("个人餐");
+        assertThat(result.indexOf("个人餐")).isLessThan(result.indexOf("公共餐"));
     }
 
     private DietAgentTools tools(AgentRunContext context, MealService meals, MealPlanService plans) {

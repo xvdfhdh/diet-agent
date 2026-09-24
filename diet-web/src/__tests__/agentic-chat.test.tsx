@@ -11,6 +11,7 @@ const mocked = vi.hoisted(() => ({
   chatStream: vi.fn(), feedback: vi.fn(), removeFavorite: vi.fn(), addFavorite: vi.fn(),
   replacePlanItem: vi.fn(), checkInPlanItem: vi.fn(),
   sessions: vi.fn(), sessionMessages: vi.fn(),
+  confirmAgentAction: vi.fn(), cancelAgentAction: vi.fn(),
 }))
 vi.mock('../lib/api', () => ({ api: mocked }))
 vi.mock('../lib/AuthContext', () => ({ useAuth: () => ({ user: { id: 7, username: 'tester', role: 'USER' } }) }))
@@ -25,6 +26,8 @@ beforeEach(() => {
   mocked.plans.mockResolvedValue([])
   mocked.sessions.mockResolvedValue([])
   mocked.sessionMessages.mockResolvedValue([])
+  mocked.confirmAgentAction.mockResolvedValue({ id: 'act-1', status: 'CONFIRMED', message: '已确认并完成操作', affectedDomains: ['PLAN'] })
+  mocked.cancelAgentAction.mockResolvedValue({ id: 'act-1', status: 'CANCELLED', message: '已取消', affectedDomains: ['PLAN'] })
   mocked.chatStream.mockImplementation(async (_payload, onEvent) => {
     onEvent({ type: 'activity', activity: { name: '读取长期偏好', status: 'COMPLETED', detail: '已应用偏好' } })
     onEvent({ type: 'complete', response: {
@@ -49,11 +52,34 @@ it('智能开关持久化并展示 Agent 降级与未提交操作', async () => 
   fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
   await waitFor(() => expect(mocked.chatStream).toHaveBeenCalledWith(
-    expect.objectContaining({ recommendationMode: 'AGENT', sourceMode: 'PUBLIC' }), expect.any(Function), expect.any(AbortSignal),
+    expect.objectContaining({ recommendationMode: 'AGENT', sourceMode: 'PUBLIC', sourceStrategy: 'UNIFIED' }), expect.any(Function), expect.any(AbortSignal),
   ))
   expect(await screen.findByText(/本次计划或清单操作未执行/)).toBeTruthy()
   expect(screen.getByText('智能 Agent')).toBeTruthy()
   expect(screen.getByText(/智能处理过程（已降级）/)).toBeTruthy()
+})
+
+it('智能批量计划展示预览并仅在确认后提交', async () => {
+  mocked.chatStream.mockImplementationOnce(async (_payload, onEvent) => {
+    onEvent({ type: 'complete', response: {
+      sessionId: 'session-1', traceId: 'trace-2', responseType: 'ANSWER', speechText: '已生成今日计划草案',
+      displayBlocks: [], missingSlots: [], actionPreview: {
+        id: 'act-1', summary: '将昨天三餐复制到今天', expiresAt: '2026-09-23T20:00:00', requiresConfirmation: true,
+        changes: [{ domain: 'PLAN', operation: 'UPSERT', description: '今天早餐加入历史早餐' }],
+      }, execution: { requestedMode: 'AGENT', actualMode: 'AGENT', fallbackOccurred: false,
+        activities: [], mutationsCommitted: false, taskType: 'PLAN', sourceStrategy: 'UNIFIED', repairCount: 0 },
+    } })
+  })
+  renderChat()
+  fireEvent.click(screen.getByRole('switch', { name: /智能推荐/ }))
+  fireEvent.change(screen.getByLabelText('描述你的餐食需求'), { target: { value: '按照昨天的计划填写今天' } })
+  fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+  expect(await screen.findByText('将昨天三餐复制到今天')).toBeTruthy()
+  expect(mocked.confirmAgentAction).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '确认执行' }))
+  await waitFor(() => expect(mocked.confirmAgentAction).toHaveBeenCalledWith('act-1'))
+  expect(await screen.findByText('已执行')).toBeTruthy()
 })
 
 it('切换页面期间流式请求继续，返回推荐页后会话仍在', async () => {

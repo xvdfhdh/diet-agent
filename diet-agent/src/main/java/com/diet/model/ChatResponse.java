@@ -24,13 +24,14 @@ public class ChatResponse {
     private String clarifyQuestion;
     private List<String> missingSlots;
     private ChatExecution execution;
+    private AgentActionPreview actionPreview;
 
     public static ChatResponse answer(String sessionId, String speechText, List<MealResponse> displayBlocks, String nextAction) {
         return answer(sessionId, null, speechText, displayBlocks, nextAction);
     }
 
     public static ChatResponse answer(String sessionId, String traceId, String speechText, List<MealResponse> displayBlocks, String nextAction) {
-        return new ChatResponse(sessionId, traceId, "ANSWER", speechText, displayBlocks == null ? List.of() : displayBlocks, nextAction, null, List.of(), null);
+        return new ChatResponse(sessionId, traceId, "ANSWER", speechText, displayBlocks == null ? List.of() : displayBlocks, nextAction, null, List.of(), null, null);
     }
 
     public static ChatResponse clarify(String sessionId, String question, List<String> missingSlots) {
@@ -38,11 +39,16 @@ public class ChatResponse {
     }
 
     public static ChatResponse clarify(String sessionId, String traceId, String question, List<String> missingSlots) {
-        return new ChatResponse(sessionId, traceId, "CLARIFY", question, List.of(), "ASK_CLARIFY", question, missingSlots == null ? List.of() : List.copyOf(missingSlots), null);
+        return new ChatResponse(sessionId, traceId, "CLARIFY", question, List.of(), "ASK_CLARIFY", question, missingSlots == null ? List.of() : List.copyOf(missingSlots), null, null);
     }
 
     public ChatResponse withExecution(ChatExecution value) {
         this.execution = value;
+        return this;
+    }
+
+    public ChatResponse withActionPreview(AgentActionPreview value) {
+        this.actionPreview = value;
         return this;
     }
 }

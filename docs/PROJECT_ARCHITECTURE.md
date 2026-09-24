@@ -1108,7 +1108,7 @@ llmJudgeScore= (explanationQuality/5 + naturalness/5) / 2
 | `diet_shopping_item` | 自动和手工购物项 | `ShoppingListMapper` / `ShoppingListService` |
 | `recommend_feedback` | 推荐喜欢/不喜欢反馈 | `FeedbackMapper` / `FeedbackService` |
 
-已有数据库需要按时间顺序执行 `diet-agent/src/main/resources/db/migrations/` 中的迁移。双链路功能对应 [20260921_agentic_recommendation.sql](../diet-agent/src/main/resources/db/migrations/20260921_agentic_recommendation.sql)。
+已有数据库需要按时间顺序执行 `diet-agent/src/main/resources/db/migrations/` 中的迁移。双链路基础功能对应 [20260921_agentic_recommendation.sql](../diet-agent/src/main/resources/db/migrations/20260921_agentic_recommendation.sql)，Agent V2 的待确认操作、统一检索、Trace 元数据和会话摘要字段对应 [20260923_agentic_v2.sql](../diet-agent/src/main/resources/db/migrations/20260923_agentic_v2.sql)。
 
 ## 16. 主要 API 分组
 

@@ -31,6 +31,10 @@ public interface SessionMapper {
     List<SessionRow> listRecentSessions(@Param("userId") Long userId, @Param("limit") int limit);
 
     int countMessages(@Param("sessionId") String sessionId, @Param("userId") Long userId);
+
+    int updateContextSummary(@Param("sessionId") String sessionId, @Param("userId") Long userId,
+                             @Param("contextSummary") String contextSummary,
+                             @Param("summaryThroughMessageId") Long summaryThroughMessageId);
 }
 
 

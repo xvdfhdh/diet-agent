@@ -11,6 +11,7 @@ public class RecommendationHistoryRow {
     private String sessionId;
     private String traceId;
     private String sourceMode;
+    private String sourceStrategy;
     private String userInput;
     private String slotsJson;
     private String speechText;

@@ -5,6 +5,8 @@ import com.diet.exception.DietException;
 import com.diet.model.TraceLabelRequest;
 import com.diet.model.RequestTraceRow;
 import com.diet.enums.RecommendationMode;
+import com.diet.enums.AgentTaskType;
+import com.diet.enums.SourceStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.message.Msg;
@@ -59,6 +61,11 @@ public class AgentTraceService {
      * 创建 TraceScope 并绑定到当前线程 ThreadLocal，供后续 recordEvent/callAgent 写入事件。
      */
     public TraceScope openTrace(String traceId, String sessionId, Long userId) {
+        TraceScope active = currentScope.get();
+        if (active != null) {
+            active.retain();
+            return active;
+        }
         // 创建 TraceScope 实例，持有 traceId/sessionId/userId 和事件列表
         TraceScope scope = new TraceScope(traceId, sessionId, userId, RecommendationMode.STANDARD);
         // 将 scope 绑定到当前线程，record 方法通过 currentScope.get() 读取
@@ -68,15 +75,36 @@ public class AgentTraceService {
     }
 
     public TraceScope openTrace(String traceId, String sessionId, Long userId, RecommendationMode requestedMode) {
+        TraceScope active = currentScope.get();
+        if (active != null) {
+            active.retain();
+            return active;
+        }
         TraceScope scope = new TraceScope(traceId, sessionId, userId,
                 requestedMode == null ? RecommendationMode.STANDARD : requestedMode);
         currentScope.set(scope);
         return scope;
     }
 
+    /** Returns the top-level trace id so nested Agent and fallback pipelines share one trace. */
+    public String activeTraceId(String fallback) {
+        TraceScope scope = currentScope.get();
+        return scope == null ? fallback : scope.traceId();
+    }
+
     public void markExecution(RecommendationMode actualMode, String fallbackCode, int toolCallCount) {
         TraceScope scope = currentScope.get();
         if (scope != null) scope.markExecution(actualMode, fallbackCode, toolCallCount);
+    }
+
+    public void markFallback(String fallbackCode) {
+        TraceScope scope = currentScope.get();
+        if (scope != null) scope.markExecution(RecommendationMode.STANDARD, fallbackCode, scope.toolCallCount());
+    }
+
+    public void markAgentMetadata(AgentTaskType taskType, SourceStrategy sourceStrategy, int repairCount) {
+        TraceScope scope = currentScope.get();
+        if (scope != null) scope.markAgentMetadata(taskType, sourceStrategy, repairCount);
     }
 
     /**
@@ -265,6 +293,9 @@ public class AgentTraceService {
         row.setActualMode(scope.actualMode().name());
         row.setFallbackCode(scope.fallbackCode());
         row.setToolCallCount(scope.toolCallCount());
+        row.setAgentTaskType(scope.agentTaskType() == null ? null : scope.agentTaskType().name());
+        row.setSourceStrategy(scope.sourceStrategy().name());
+        row.setRepairCount(scope.repairCount());
         // 执行 INSERT
         agentTraceMapper.insert(row);
     }
@@ -368,6 +399,9 @@ public class AgentTraceService {
         private RecommendationMode actualMode;
         private String fallbackCode;
         private int toolCallCount;
+        private AgentTaskType agentTaskType;
+        private SourceStrategy sourceStrategy = SourceStrategy.SELECTED_ONLY;
+        private int repairCount;
 
         /** 事件序号计数器，线程安全自增。 */
         private final AtomicInteger stepOrder = new AtomicInteger(0);
@@ -384,8 +418,8 @@ public class AgentTraceService {
         /** 失败时的错误摘要。 */
         private String errorMessage;
 
-        /** 是否已 close，防止重复 flush。 */
-        private boolean closed;
+        /** Re-entrant pipeline leases; only the top-level close flushes the trace. */
+        private int leases = 1;
 
         /** 私有构造，仅 AgentTraceService#openTrace 创建。 */
         private TraceScope(String traceId, String sessionId, Long userId, RecommendationMode requestedMode) {
@@ -402,11 +436,24 @@ public class AgentTraceService {
         private RecommendationMode actualMode() { return actualMode; }
         private String fallbackCode() { return fallbackCode; }
         private int toolCallCount() { return toolCallCount; }
+        private AgentTaskType agentTaskType() { return agentTaskType; }
+        private SourceStrategy sourceStrategy() { return sourceStrategy; }
+        private int repairCount() { return repairCount; }
 
         private void markExecution(RecommendationMode actualMode, String fallbackCode, int toolCallCount) {
             this.actualMode = actualMode == null ? requestedMode : actualMode;
             this.fallbackCode = fallbackCode;
             this.toolCallCount = Math.max(0, toolCallCount);
+            if (this.actualMode == RecommendationMode.STANDARD && fallbackCode != null) {
+                this.status = "SUCCESS";
+                this.errorMessage = null;
+            }
+        }
+
+        private void markAgentMetadata(AgentTaskType taskType, SourceStrategy sourceStrategy, int repairCount) {
+            this.agentTaskType = taskType;
+            this.sourceStrategy = sourceStrategy == null ? SourceStrategy.SELECTED_ONLY : sourceStrategy;
+            this.repairCount = Math.max(0, repairCount);
         }
 
         /** 返回下一个事件序号（先自增再返回）。 */
@@ -421,6 +468,7 @@ public class AgentTraceService {
 
         /** 追加一条事件到 events 列表。 */
         private void addEvent(TraceEvent event) { events.add(event); }
+        private void retain() { leases++; }
 
         /** 将 Trace 标记为 FAILED 并记录错误信息。 */
         private void markFailed(String errorMessage) {
@@ -431,11 +479,9 @@ public class AgentTraceService {
         /** close 时 flush 到 DB 并清除 ThreadLocal。 */
         @Override
         public void close() {
-            // 已 close 则直接返回，避免重复 INSERT
-            if (closed) {
-                return;
-            }
-            closed = true;
+            if (leases <= 0) return;
+            leases--;
+            if (leases > 0) return;
             try {
                 // 将 events 序列化并 INSERT agent_traces
                 flushTrace(this);

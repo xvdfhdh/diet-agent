@@ -1,5 +1,7 @@
 export type SourceMode = 'PERSONAL' | 'PUBLIC'
 export type RecommendationMode = 'STANDARD' | 'AGENT'
+export type SourceStrategy = 'SELECTED_ONLY' | 'UNIFIED'
+export type AgentTaskType = 'RECOMMEND' | 'PLAN' | 'SHOPPING' | 'CHECKIN' | 'FAVORITE' | 'PREFERENCE' | 'GENERAL'
 
 export interface AgentActivity {
   name: string
@@ -14,6 +16,30 @@ export interface ChatExecution {
   fallbackCode?: string
   activities: AgentActivity[]
   mutationsCommitted: boolean
+  taskType?: AgentTaskType
+  sourceStrategy?: SourceStrategy
+  repairCount?: number
+}
+
+export interface AgentActionChange {
+  domain: string
+  operation: string
+  description: string
+}
+
+export interface AgentActionPreview {
+  id: string
+  summary: string
+  changes: AgentActionChange[]
+  expiresAt: string
+  requiresConfirmation: boolean
+}
+
+export interface AgentActionResponse {
+  id: string
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED'
+  message: string
+  affectedDomains: string[]
 }
 
 export interface AuthUser {
@@ -135,6 +161,7 @@ export interface RecommendationHistory {
   sessionId: string
   traceId: string
   sourceMode: SourceMode
+  sourceStrategy?: SourceStrategy
   userInput: string
   slots: SlotBundle
   speechText: string
@@ -208,6 +235,7 @@ export interface ChatResponse {
   clarifyQuestion?: string
   missingSlots: string[]
   execution?: ChatExecution
+  actionPreview?: AgentActionPreview
 }
 
 export interface ChatStreamEvent {
@@ -230,6 +258,9 @@ export interface Trace {
   actualMode?: RecommendationMode
   fallbackCode?: string
   toolCallCount?: number
+  agentTaskType?: AgentTaskType
+  sourceStrategy?: SourceStrategy
+  repairCount?: number
   expectedIntent?: string
   expectedSlots?: string
   expectedClarifyAction?: string

@@ -93,6 +93,12 @@ public class SessionService {
                 .toList();
     }
 
+    public String contextSummary(String sessionId, Long userId) {
+        if (sessionId == null || sessionId.isBlank() || userId == null) return "";
+        SessionRow row = sessionMapper.findById(sessionId, userId);
+        return row == null || row.getContextSummary() == null ? "" : row.getContextSummary();
+    }
+
     /** 查询当前用户最近的会话，用于前端恢复完整聊天，而不只查看推荐卡片历史。 */
     public List<SessionSummaryResponse> recentSessions(Long userId, Integer requestedLimit) {
         int limit = requestedLimit == null ? 20 : Math.max(1, Math.min(requestedLimit, 50));

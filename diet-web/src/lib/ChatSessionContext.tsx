@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react'
 import { api } from './api'
 import { useAuth } from './AuthContext'
-import type { AgentActivity, ChatExecution, ChatResponse, Meal, RecommendationMode, SessionMessage, SourceMode } from '../types'
+import type { AgentActionPreview, AgentActivity, ChatExecution, ChatResponse, Meal, RecommendationMode, SessionMessage, SourceMode } from '../types'
 
 export type ChatMessage = {
   id: string
@@ -14,6 +14,8 @@ export type ChatMessage = {
   recommendationMode?: RecommendationMode
   activities?: AgentActivity[]
   execution?: ChatExecution
+  actionPreview?: AgentActionPreview
+  actionStatus?: 'CONFIRMED' | 'CANCELLED'
 }
 
 type ChatNotice = { message: string; tone: 'success' | 'error' }
@@ -34,6 +36,8 @@ type ChatSessionValue = ChatState & {
   send: (message: string) => void
   clear: () => void
   restore: (sessionId: string, sourceMode: SourceMode, messages: SessionMessage[]) => void
+  confirmAction: (messageId: string, actionId: string) => Promise<void>
+  cancelAction: (messageId: string, actionId: string) => Promise<void>
   clearNotice: () => void
 }
 
@@ -121,7 +125,8 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       const response = completed
       patchAssistant((message) => ({ ...message, text: response.clarifyQuestion || response.speechText,
         meals: response.displayBlocks, traceId: response.traceId, status: undefined, streaming: false,
-        execution: response.execution, activities: response.execution?.activities || message.activities }))
+        execution: response.execution, actionPreview: response.actionPreview,
+        activities: response.execution?.activities || message.activities }))
       const writeSkipped = response.execution?.activities.some((activity) => activity.status === 'NOT_COMMITTED')
       setState((current) => ({ ...current, loading: false, sessionId: response.sessionId,
         conversationRevision: current.conversationRevision + 1,
@@ -153,7 +158,8 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
 
     try {
       await api.chatStream({ sessionId: snapshot.sessionId, message: text, sourceMode: snapshot.mode,
-        recommendationMode: snapshot.smartMode ? 'AGENT' : 'STANDARD' }, (event) => {
+        recommendationMode: snapshot.smartMode ? 'AGENT' : 'STANDARD',
+        sourceStrategy: snapshot.smartMode ? 'UNIFIED' : 'SELECTED_ONLY' }, (event) => {
         if (event.type === 'status') patchAssistant((message) => ({ ...message, status: event.text }))
         else if (event.type === 'activity' && event.activity) patchAssistant((message) => ({ ...message,
           activities: [...(message.activities || []), event.activity!] }))
@@ -176,9 +182,39 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     }
   }
 
+  async function confirmAction(messageId: string, actionId: string) {
+    await resolveAction(messageId, actionId, 'confirm')
+  }
+
+  async function cancelAction(messageId: string, actionId: string) {
+    await resolveAction(messageId, actionId, 'cancel')
+  }
+
+  async function resolveAction(messageId: string, actionId: string, operation: 'confirm' | 'cancel') {
+    if (stateRef.current.loading) return
+    setState((current) => ({ ...current, loading: true, notice: EMPTY_NOTICE }))
+    try {
+      const response = operation === 'confirm'
+        ? await api.confirmAgentAction(actionId)
+        : await api.cancelAgentAction(actionId)
+      const committed = response.status === 'CONFIRMED'
+      setState((current) => ({ ...current, loading: false,
+        messages: current.messages.map((message) => message.id === messageId
+          ? { ...message, actionStatus: response.status === 'CONFIRMED' ? 'CONFIRMED' : 'CANCELLED' }
+          : message),
+        mutationRevision: current.mutationRevision + (committed ? 1 : 0),
+        dataRevision: current.dataRevision + (committed ? 1 : 0),
+        notice: { message: response.message, tone: 'success' } }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '操作失败，请重试'
+      setState((current) => ({ ...current, loading: false, notice: { message, tone: 'error' } }))
+    }
+  }
+
   function clearNotice() { setState((current) => ({ ...current, notice: EMPTY_NOTICE })) }
 
-  return <ChatSessionContext.Provider value={{ ...state, setMode, toggleSmartMode, send, clear, restore, clearNotice }}>
+  return <ChatSessionContext.Provider value={{ ...state, setMode, toggleSmartMode, send, clear, restore,
+    confirmAction, cancelAction, clearNotice }}>
     {children}
   </ChatSessionContext.Provider>
 }

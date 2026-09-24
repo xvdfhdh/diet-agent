@@ -91,6 +91,24 @@ a { color: inherit; }
 .agent-activities li span { display: grid; gap: 1px; color: var(--ink); font-size: 11px; }
 .agent-activities li small { color: var(--muted); font-weight: 400; }
 .execution-metrics { margin-bottom: 16px; flex-wrap: wrap; }
+
+.unified-source-note { display: inline-flex; align-items: center; gap: 9px; min-height: 38px; padding: 6px 12px; border: 1px solid #d6e7dc; border-radius: 12px; background: #f4faf6; color: #315a42; }
+.unified-source-note span { display: grid; gap: 1px; }
+.unified-source-note b { font-size: 13px; }
+.unified-source-note small { color: #698071; font-size: 11px; }
+.agent-action-preview { margin-top: 12px; padding: 14px; border: 1px solid #d8e7dc; border-radius: 14px; background: linear-gradient(145deg, #f7fbf8, #fff); }
+.agent-action-preview header { display: flex; align-items: flex-start; gap: 9px; }
+.agent-action-preview header > span { color: #3f7252; padding-top: 2px; }
+.agent-action-preview header p { margin: 3px 0 0; color: #516158; font-size: 13px; }
+.agent-action-preview ul { display: grid; gap: 6px; margin: 12px 0; padding: 0; list-style: none; }
+.agent-action-preview li { display: flex; gap: 8px; color: #46534c; font-size: 13px; }
+.agent-action-preview li span { flex: 0 0 auto; padding: 1px 6px; border-radius: 6px; background: #e8f3eb; color: #3d654a; font-size: 11px; }
+.agent-action-preview > small { display: block; color: #78847d; font-size: 11px; }
+.agent-action-buttons { display: flex; gap: 8px; margin-top: 12px; }
+.agent-action-buttons button { border: 1px solid #bfd3c5; border-radius: 9px; padding: 7px 12px; background: #fff; color: #45604e; cursor: pointer; }
+.agent-action-buttons button:first-child { border-color: #477e59; background: #477e59; color: #fff; }
+.agent-action-buttons button:disabled { cursor: wait; opacity: .55; }
+.agent-action-preview.resolved { background: #f7f7f4; opacity: .78; }
 .chat-history-section { margin: 18px 0 24px; }
 .session-history-list { display: grid; gap: 6px; max-height: 230px; overflow: auto; padding-right: 3px; }
 .session-history-list button { display: grid; gap: 4px; width: 100%; padding: 9px 10px; border: 1px solid transparent; border-radius: 9px; background: #f7f8f5; text-align: left; cursor: pointer; }

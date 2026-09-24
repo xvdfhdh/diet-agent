@@ -11,6 +11,8 @@ class AgentMutationPolicyTest {
     void vaguePraiseCannotWritePlan() {
         assertThat(policy.mutationRequested("这道不错")).isFalse();
         assertThat(policy.mayAddPlan("把它加入明天午餐计划")).isTrue();
+        assertThat(policy.mayAddPlan("帮我按照之前的每日饮食计划，填写今日计划")).isTrue();
+        assertThat(policy.mayAddPlan("沿用昨天的早餐和午餐到今天")).isTrue();
     }
 
     @Test

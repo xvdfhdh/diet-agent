@@ -10,6 +10,8 @@
         <result property="phase" column="phase"/>
         <result property="slots" column="slots"/>
         <result property="lastRecommendations" column="last_recommendations"/>
+        <result property="contextSummary" column="context_summary"/>
+        <result property="summaryThroughMessageId" column="summary_through_message_id"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
@@ -38,6 +40,8 @@
         phase,
         slots,
         last_recommendations,
+        context_summary,
+        summary_through_message_id,
         created_at,
         updated_at
         FROM diet_sessions
@@ -79,7 +83,7 @@
     </select>
 
     <select id="listRecentSessions" resultMap="SessionRowMap">
-        SELECT id, user_id, phase, slots, last_recommendations, created_at, updated_at
+        SELECT id, user_id, phase, slots, last_recommendations, context_summary, summary_through_message_id, created_at, updated_at
         FROM diet_sessions
         WHERE user_id = #{userId}
         ORDER BY updated_at DESC, created_at DESC
@@ -92,5 +96,13 @@
         INNER JOIN diet_sessions s ON s.id = m.session_id AND s.user_id = #{userId}
         WHERE m.session_id = #{sessionId}
     </select>
+
+    <update id="updateContextSummary">
+        UPDATE diet_sessions
+        SET context_summary = #{contextSummary},
+            summary_through_message_id = #{summaryThroughMessageId},
+            updated_at = NOW()
+        WHERE id = #{sessionId} AND user_id = #{userId}
+    </update>
 
 </mapper>

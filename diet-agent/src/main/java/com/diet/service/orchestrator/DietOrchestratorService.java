@@ -171,7 +171,7 @@ public class DietOrchestratorService {
     public ChatResponse dietChat(Long userId, ChatRequest request, Consumer<String> progress) {
         Consumer<String> safeProgress = progress == null ? ignored -> { } : progress;
         // 生成本轮唯一 traceId，格式 trace_<32位hex>，贯穿整轮请求的所有 Trace 事件
-        String traceId = "trace_" + UUID.randomUUID().toString().replace("-", "");
+        String proposedTraceId = "trace_" + UUID.randomUUID().toString().replace("-", "");
         // 校验 request 非空且 message 非空白，否则抛业务异常
         if (request == null || request.message() == null || request.message().isBlank()) {
             throw new DietException("用户问题不能为空");
@@ -186,7 +186,8 @@ public class DietOrchestratorService {
         SessionState initialState = sessionStateService.loadOrCreate(request.sessionId(), userId, request.sourceMode());
 
         // 开启 Trace 上下文；try-with-resources 结束时 TraceScope#close 会将整轮事件写入 agent_traces 表
-        try (AgentTraceService.TraceScope ignored = agentTraceService.openTrace(traceId, initialState.sessionId(), userId)) {
+        try (AgentTraceService.TraceScope ignored = agentTraceService.openTrace(proposedTraceId, initialState.sessionId(), userId)) {
+            String traceId = agentTraceService.activeTraceId(proposedTraceId);
             try {
                 // 记录请求开始时间（纳秒），用于最后计算整轮耗时
                 long startedAt = System.nanoTime();

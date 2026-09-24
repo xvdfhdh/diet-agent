@@ -4,6 +4,7 @@ import java.util.Map;
 
 import com.diet.enums.SourceMode;
 import com.diet.enums.RecommendationMode;
+import com.diet.enums.SourceStrategy;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 
 import lombok.AllArgsConstructor;
@@ -21,5 +22,11 @@ public class ChatRequest {
     private String message;
     private SourceMode sourceMode;
     private RecommendationMode recommendationMode;
+    private SourceStrategy sourceStrategy;
     private Map<String, Object> context;
+
+    public ChatRequest(String sessionId, String message, SourceMode sourceMode,
+                       RecommendationMode recommendationMode, Map<String, Object> context) {
+        this(sessionId, message, sourceMode, recommendationMode, null, context);
+    }
 }

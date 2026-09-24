@@ -97,6 +97,12 @@ public class ShoppingListService {
         return itemResponse(mapper.findOwnedItem(id, userId));
     }
 
+    public ShoppingItemResponse findOwnedItem(Long userId, Long id) {
+        ShoppingItemRow row = mapper.findOwnedItem(id, userId);
+        if (row == null) throw new DietException("购物项不存在或无权访问");
+        return itemResponse(row);
+    }
+
     @Transactional
     public void deleteItem(Long userId, Long id) {
         if (mapper.deleteItem(id, userId) == 0) throw new DietException("购物项不存在或无权访问");

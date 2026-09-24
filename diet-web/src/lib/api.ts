@@ -1,4 +1,4 @@
-import type { AcquisitionMode, AuthResponse, AuthUser, ChatResponse, ChatStreamEvent, EvaluationReport, FavoriteMeal, Meal, MealBulkRequest, MealBulkResponse, MealDraft, MealPeriod, ModelConfig, ModelConfigDraft, PlanItem, RecommendationHistory, RecommendationMode, SessionMessage, SessionSummary, ShoppingItem, ShoppingList, Trace, UserMemory, UserPreferenceProfile, WeeklySummary } from '../types'
+import type { AcquisitionMode, AgentActionResponse, AuthResponse, AuthUser, ChatResponse, ChatStreamEvent, EvaluationReport, FavoriteMeal, Meal, MealBulkRequest, MealBulkResponse, MealDraft, MealPeriod, ModelConfig, ModelConfigDraft, PlanItem, RecommendationHistory, RecommendationMode, SessionMessage, SessionSummary, ShoppingItem, ShoppingList, SourceStrategy, Trace, UserMemory, UserPreferenceProfile, WeeklySummary } from '../types'
 import { authToken, clearAuthToken } from './authStorage'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1/diet').replace(/\/$/, '')
@@ -32,10 +32,10 @@ export const api = {
   login: (payload: { username: string; password: string }) => request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
   me: () => request<AuthUser>('/auth/me'),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
-  chat: (payload: { sessionId?: string; message: string; sourceMode: 'PERSONAL' | 'PUBLIC'; recommendationMode?: RecommendationMode }) =>
+  chat: (payload: { sessionId?: string; message: string; sourceMode: 'PERSONAL' | 'PUBLIC'; recommendationMode?: RecommendationMode; sourceStrategy?: SourceStrategy }) =>
     request<ChatResponse>('/chat', { method: 'POST', body: JSON.stringify({ ...payload, context: {} }) }),
   chatStream: async (
-    payload: { sessionId?: string; message: string; sourceMode: 'PERSONAL' | 'PUBLIC'; recommendationMode?: RecommendationMode },
+    payload: { sessionId?: string; message: string; sourceMode: 'PERSONAL' | 'PUBLIC'; recommendationMode?: RecommendationMode; sourceStrategy?: SourceStrategy },
     onEvent: (event: ChatStreamEvent) => void,
     signal?: AbortSignal,
   ) => {
@@ -67,6 +67,8 @@ export const api = {
   },
   sessions: (limit = 20) => request<SessionSummary[]>(`/sessions?limit=${limit}`),
   sessionMessages: (sessionId: string, limit = 200) => request<SessionMessage[]>(`/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}`),
+  confirmAgentAction: (id: string) => request<AgentActionResponse>(`/agent-actions/${encodeURIComponent(id)}/confirm`, { method: 'POST' }),
+  cancelAgentAction: (id: string) => request<AgentActionResponse>(`/agent-actions/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   meals: (mode: 'personal' | 'public') => request<Meal[]>(`/meals/${mode}`),
   meal: (id: number) => request<Meal>(`/meals/${id}`),
   createMeal: (payload: MealDraft) => request<Meal>('/meals/personal', { method: 'POST', body: JSON.stringify(payload) }),

@@ -12,7 +12,7 @@
 
 环境要求：Java 21、Maven 3.9+、Node.js 20+、MySQL 8。
 
-1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql`、`20260916_stream_favorites_preferences_images.sql`、`20260917_user_auth.sql`、`20260918_seeded_meal_taste_option.sql`、`20260920_daily_assistant.sql` 和 `20260921_agentic_recommendation.sql`（每个迁移只执行一次）。最后两个迁移分别增加日常饮食闭环表和智能推荐链路的 Trace 字段。
+1. 在 MySQL 中执行 `diet-agent/src/main/resources/db/diet_db.sql`。已有数据库依次执行 `diet-agent/src/main/resources/db/migrations/20260914_model_config.sql`、`20260915_recommendation_history_and_memory.sql`、`20260916_stream_favorites_preferences_images.sql`、`20260917_user_auth.sql`、`20260918_seeded_meal_taste_option.sql`、`20260920_daily_assistant.sql`、`20260921_agentic_recommendation.sql` 和 `20260923_agentic_v2.sql`（每个迁移只执行一次）。后三个迁移分别增加日常饮食闭环、智能推荐链路及 Agent V2 的待确认操作、跨库策略和长会话摘要字段。
 2. 配置本地数据库。建议新建不提交的 `diet-agent/src/main/resources/application-dev.yml`：
 
 ```yaml

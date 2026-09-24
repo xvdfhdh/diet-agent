@@ -10,6 +10,7 @@
         <result property="sessionId" column="session_id"/>
         <result property="traceId" column="trace_id"/>
         <result property="sourceMode" column="source_mode"/>
+        <result property="sourceStrategy" column="source_strategy"/>
         <result property="userInput" column="user_input"/>
         <result property="slotsJson" column="slots_json"/>
         <result property="speechText" column="speech_text"/>
@@ -20,16 +21,16 @@
     <insert id="insert" parameterType="com.diet.model.RecommendationHistoryRow"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO diet_recommendation_history (
-            user_id, session_id, trace_id, source_mode, user_input,
+            user_id, session_id, trace_id, source_mode, source_strategy, user_input,
             slots_json, speech_text, meals_json, created_at
         ) VALUES (
-            #{userId}, #{sessionId}, #{traceId}, #{sourceMode}, #{userInput},
+            #{userId}, #{sessionId}, #{traceId}, #{sourceMode}, #{sourceStrategy}, #{userInput},
             #{slotsJson}, #{speechText}, #{mealsJson}, NOW()
         )
     </insert>
 
     <select id="findToday" resultMap="RecommendationHistoryRowMap">
-        SELECT id, user_id, session_id, trace_id, source_mode, user_input,
+        SELECT id, user_id, session_id, trace_id, source_mode, source_strategy, user_input,
                slots_json, speech_text, meals_json, created_at
         FROM diet_recommendation_history
         WHERE user_id = #{userId}
@@ -40,7 +41,7 @@
     </select>
 
     <select id="findRecent" resultMap="RecommendationHistoryRowMap">
-        SELECT id, user_id, session_id, trace_id, source_mode, user_input,
+        SELECT id, user_id, session_id, trace_id, source_mode, source_strategy, user_input,
                slots_json, speech_text, meals_json, created_at
         FROM diet_recommendation_history
         WHERE user_id = #{userId}

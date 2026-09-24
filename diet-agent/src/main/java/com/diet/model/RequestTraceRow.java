@@ -19,6 +19,9 @@ public class RequestTraceRow {
     private String actualMode;
     private String fallbackCode;
     private Integer toolCallCount;
+    private String agentTaskType;
+    private String sourceStrategy;
+    private Integer repairCount;
     private String expectedIntent;
     private String expectedSlots;
     private String expectedClarifyAction;

@@ -11,6 +11,8 @@ public class SessionRow {
     private String phase;
     private String slots;
     private String lastRecommendations;
+    private String contextSummary;
+    private Long summaryThroughMessageId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
